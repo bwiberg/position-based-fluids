@@ -1,0 +1,1 @@
+CMake-based template project for using OpenCL/OpenGL interoperability in C++.
