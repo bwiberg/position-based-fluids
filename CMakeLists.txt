@@ -9,6 +9,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 add_subdirectory(external)
 include_directories(${EXTERNAL_INCLUDE_DIRS})
 
+include_directories(src)
+
 set(SOURCE_FILES main.cpp)
 add_executable(cl_gl_bootstrap ${SOURCE_FILES})
 

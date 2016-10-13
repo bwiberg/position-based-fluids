@@ -1,7 +1,17 @@
 #include <iostream>
 #include <CL/cl.hpp>
 
-cl::Device default_device;
+#include <tictoc.hpp>
+
+#ifdef __linux__
+#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
+#elif defined _WIN32
+#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
+#elif defined TARGET_OS_MAC
+#define GL_SHARING_EXTENSION "cl_APPLE_gl_sharing"
+#endif
+
+cl::Device chosen_device;
 cl::Context context;
 
 // Source: http://simpleopencl.blogspot.com/2013/06/tutorial-simple-start-with-opencl-and-c.html
@@ -16,8 +26,8 @@ void runTestKernel() {
     sources.push_back({kernel_code.c_str(), kernel_code.length()});
 
     cl::Program program(context, sources);
-    if (program.build({default_device}) != CL_SUCCESS) {
-        std::cout << " Error building: " << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(default_device) << "\n";
+    if (program.build({chosen_device}) != CL_SUCCESS) {
+        std::cout << " Error building: " << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(chosen_device) << "\n";
         exit(1);
     }
 
@@ -31,7 +41,7 @@ void runTestKernel() {
     int B[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0};
 
     //create queue to which we will push commands for the device.
-    cl::CommandQueue queue(context, default_device);
+    cl::CommandQueue queue(context, chosen_device);
 
     //write arrays A and B to the device
     queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, sizeof(int) * 10, A);
@@ -62,6 +72,7 @@ void runTestKernel() {
 }
 
 int main() {
+
     //get all platforms (drivers)
     std::vector<cl::Platform> all_platforms;
     cl::Platform::get(&all_platforms);
@@ -69,22 +80,46 @@ int main() {
         std::cout << " No platforms found. Check OpenCL installation!\n";
         exit(1);
     }
-    cl::Platform default_platform = all_platforms[0];
-    std::cout << "Using platform: " << default_platform.getInfo<CL_PLATFORM_NAME>() << "\n";
 
-    //get default device of the default platform
+    // Select platform
+    std::cout << "Found " << all_platforms.size() << " platforms:" << std::endl;
+    for (unsigned int i = 0; i < all_platforms.size(); ++i) {
+        cl::Platform &platform = all_platforms[i];
+        std::cout << i << ": " << platform.getInfo<CL_PLATFORM_NAME>() << std::endl;
+    }
+    std::cout << "Choice: ";
+    unsigned int platform_id;
+    std::cin >> platform_id;
+
+    cl::Platform chosen_platform = all_platforms[platform_id];
+
     std::vector<cl::Device> all_devices;
-    default_platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices);
+    chosen_platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices);
     if (all_devices.size() == 0) {
         std::cout << " No devices found. Check OpenCL installation!\n";
         exit(1);
     }
 
-    default_device = all_devices[0];
-    std::cout << "Using device: " << default_device.getInfo<CL_DEVICE_NAME>() << "\n";
+    // Select device of the chosen platform
+    std::cout << "Found " << all_platforms.size() << " devices:" << std::endl;
+    for (unsigned int i = 0; i < all_devices.size(); ++i) {
+        cl::Device &device = all_devices[i];
+        bool has_cl_gl_sharing = device.getInfo<CL_DEVICE_EXTENSIONS>().find(GL_SHARING_EXTENSION) != std::string::npos;
+        std::cout << i << ": " << device.getInfo<CL_DEVICE_NAME>()
+                  << ", CL-GL interoperability: " << (has_cl_gl_sharing ? "YES" : "NO")
+                  << std::endl;
 
-    context = cl::Context({default_device});
+    }
+    std::cout << "Choice: ";
+    unsigned int device_id;
+    std::cin >> device_id;
 
+    chosen_device = all_devices[device_id];
+
+    context = cl::Context({chosen_device});
+
+    tic();
     runTestKernel();
+    toc();
     return 0;
 }
