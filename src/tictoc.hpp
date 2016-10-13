@@ -10,18 +10,18 @@ namespace tictoc {
     high_resolution_clock::time_point tp_tictoc_start;
 }
 
-bool tic() {
+void tic() {
     if (tictoc::is_tictocing) {
-        return false;
+        return;
     }
 
     tictoc::tp_tictoc_start = high_resolution_clock::now();
     tictoc::is_tictocing = true;
 }
 
-bool toc() {
+void toc() {
     if (!tictoc::is_tictocing) {
-        return false;
+        return;
     }
 
     auto tp_tictoc_end = high_resolution_clock::now();
