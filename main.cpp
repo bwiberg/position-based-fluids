@@ -1,5 +1,6 @@
 #include <iostream>
 #include <CL/cl.hpp>
+#include <nanogui/nanogui.h>
 
 #include <tictoc.hpp>
 
@@ -121,5 +122,23 @@ int main() {
     tic();
     runTestKernel();
     toc();
+
+    // open nanogui window lolz
+    nanogui::init();
+
+    nanogui::Screen *screen = new nanogui::Screen(Eigen::Vector2i(500, 700), "NanoGUI test [GL 4.1]",
+                /*resizable*/true, /*fullscreen*/false, /*colorBits*/8,
+                /*alphaBits*/8, /*depthBits*/24, /*stencilBits*/8,
+                /*nSamples*/0, /*glMajor*/4, /*glMinor*/1);
+
+    bool enabled = true;
+
+    screen->setVisible(true);
+    screen->performLayout();
+
+    nanogui::mainloop();
+
+    nanogui::shutdown();
+
     return 0;
 }

@@ -19,6 +19,15 @@ else (${OPENGL_FOUND})
     message(FATAL_ERROR "OpenGL not found.")
 endif (${OPENGL_FOUND})
 
+#### ################# ####
+#### #### NanoGUI #### ####
+#### ################# ####
+add_subdirectory(nanogui)
+set(NANOGUI_EXTRA_INCLUDE_DIRS
+        ${CMAKE_CURRENT_SOURCE_DIR}/nanogui/ext/eigen
+        ${CMAKE_CURRENT_SOURCE_DIR}/nanogui/ext/glfw/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/nanogui/ext/nanovg/src)
+
 #### Khronos C++ OpenCL Wrapper API ####
 
 
@@ -26,20 +35,25 @@ endif (${OPENGL_FOUND})
 set(EXTERNAL_LIBRARIES
         ${OpenCL_LIBRARIES}
         ${OPENGL_LIBRARIES}
-        PARENT_SCOPE)
+        nanogui)
 
 set(EXTERNAL_INCLUDE_DIRS
         ${OpenCL_INCLUDE_DIRS}
         ${OPENGL_INCLUDE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        PARENT_SCOPE)
+        ${NanoGUI_SOURCE_DIR}/include
+        ${NANOGUI_EXTRA_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR})
 
 ### Print libraries to CMake output ###
-message(STATUS "external libraries:")
+message(WARNING "external libraries:")
 foreach (EXTERNAL_LIBRARY ${EXTERNAL_LIBRARIES})
-    message(STATUS "	${EXTERNAL_LIBRARY}")
+    message(WARNING "	${EXTERNAL_LIBRARY}")
 endforeach (EXTERNAL_LIBRARY)
-message(STATUS "external include directories:")
+message(WARNING "external include directories:")
 foreach (EXTERNAL_INCLUDE_DIR ${EXTERNAL_INCLUDE_DIRS})
-    message(STATUS "	${EXTERNAL_INCLUDE_DIR}")
+    message(WARNING "	${EXTERNAL_INCLUDE_DIR}")
 endforeach (EXTERNAL_INCLUDE_DIR)
+
+### Export libraries and include dirs to parent scope
+set(EXTERNAL_LIBRARIES ${EXTERNAL_LIBRARIES} PARENT_SCOPE)
+set(EXTERNAL_INCLUDE_DIRS ${EXTERNAL_INCLUDE_DIRS} PARENT_SCOPE)
