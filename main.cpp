@@ -1,6 +1,7 @@
 #include <iostream>
 #include <CL/cl.hpp>
 #include <nanogui/nanogui.h>
+#include <glm/glm.hpp>
 
 #include <tictoc.hpp>
 
@@ -73,6 +74,8 @@ void runTestKernel() {
 }
 
 int main() {
+    // test glm
+    glm::vec3 vector(1.0f, 0.0f, 0.0f);
 
     //get all platforms (drivers)
     std::vector<cl::Platform> all_platforms;

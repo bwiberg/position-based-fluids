@@ -28,6 +28,16 @@ set(NANOGUI_EXTRA_INCLUDE_DIRS
         ${CMAKE_CURRENT_SOURCE_DIR}/nanogui/ext/glfw/include
         ${CMAKE_CURRENT_SOURCE_DIR}/nanogui/ext/nanovg/src)
 
+#### ############# ####
+#### #### GLM #### ####
+#### ############# ####
+find_package(GLM)
+if (${GLM_FOUND})
+    message(STATUS "GLM found.")
+else (${GLM_FOUND})
+    message(FATAL_ERROR "GLM not found.")
+endif(${GLM_FOUND})
+
 #### Khronos C++ OpenCL Wrapper API ####
 
 
@@ -42,6 +52,7 @@ set(EXTERNAL_INCLUDE_DIRS
         ${OPENGL_INCLUDE_DIR}
         ${NanoGUI_SOURCE_DIR}/include
         ${NANOGUI_EXTRA_INCLUDE_DIRS}
+        ${GLM_INCLUDE_DIRS}
         ${CMAKE_CURRENT_SOURCE_DIR})
 
 ### Print libraries to CMake output ###

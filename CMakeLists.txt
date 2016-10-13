@@ -3,6 +3,9 @@ project(cl_gl_bootstrap)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
+# for providing custom FindXXX.cmake modules
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+
 ################################################
 ############ External dependencies #############
 ################################################
