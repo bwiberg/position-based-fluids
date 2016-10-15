@@ -1,7 +1,6 @@
 #include "Application.hpp"
 
 #include <iostream>
-#include <algorithm>
 #include <util/make_unique.hpp>
 
 #ifdef __linux__
@@ -13,6 +12,8 @@
 #endif
 
 namespace clgl {
+    std::map<std::string, std::function<std::unique_ptr<BaseScene>(void)>> Application::SceneCreators;
+
     Application::Application(int argc, char *argv[]) {
         // Read command line arguments
         std::vector<std::string> args;
@@ -23,10 +24,16 @@ namespace clgl {
         if (!setupOpenCL(args) || !setupNanoGUI(args)) {
             std::exit(1);
         }
+
+        createConfigGUI();
     }
 
     Application::~Application() {
         nanogui::shutdown();
+    }
+
+    void Application::addSceneCreator(std::string formattedName, std::function<std::unique_ptr<BaseScene>(void)> sceneCreator) {
+        SceneCreators[formattedName] = sceneCreator;
     }
 
     bool Application::setupOpenCL(const std::vector<std::string> args) {
@@ -66,10 +73,10 @@ namespace clgl {
             windowSize[1] = std::stoi(*(++iter));
         }
 
-        mScreen = util::make_unique<nanogui::Screen>(windowSize, "NanoGUI test [GL 4.1]",
+        mScreen = util::make_unique<Screen>(windowSize, "NanoGUI test [GL 4.1]",
                 /*resizable*/true, fullscreen, /*colorBits*/8,
                 /*alphaBits*/8, /*depthBits*/24, /*stencilBits*/8,
-                /*nSamples*/0, /*glMajor*/4, /*glMinor*/1);
+                /*nSamples*/0);
 
         return true;
     }
@@ -118,7 +125,8 @@ namespace clgl {
             std::cout << "Found " << allDevices.size() << " devices:" << std::endl;
             for (unsigned int i = 0; i < allDevices.size(); ++i) {
                 cl::Device &device = allDevices[i];
-                bool has_cl_gl_sharing = device.getInfo<CL_DEVICE_EXTENSIONS>().find(GL_SHARING_EXTENSION) != std::string::npos;
+                bool has_cl_gl_sharing =
+                        device.getInfo<CL_DEVICE_EXTENSIONS>().find(GL_SHARING_EXTENSION) != std::string::npos;
                 std::cout << i << ": " << device.getInfo<CL_DEVICE_NAME>()
                           << ", CL-GL interoperability: " << (has_cl_gl_sharing ? "YES" : "NO")
                           << std::endl;
@@ -137,12 +145,113 @@ namespace clgl {
         return true;
     }
 
-    int Application::run() {
-        mScreen->setVisible(true);
+    void Application::createConfigGUI() {
+        using namespace nanogui;
+        Window *window = new Window(mScreen.get(), "General Controls");
+        window->setPosition(Eigen::Vector2i(15,15));
+        window->setLayout(new GroupLayout());
+
+        Widget *tools = new Widget(window);
+        tools->setLayout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 4));
+        Vector2i toolSize(50,30);
+
+        Button *play = new ToolButton(tools, ENTYPO_ICON_PLAY);
+        play->setFixedSize(toolSize);
+        play->setChangeCallback([=](bool state) {
+            std::cout << (state ? "PLAY" : "PAUSE") << std::endl;
+            this->mSceneIsPlaying = state;
+        });
+
+        Button *reset = new Button(tools, "", ENTYPO_ICON_LEVEL_UP);
+        reset->setFixedSize(toolSize);
+        reset->setCallback([=] {
+            if (this->mSceneIsPlaying) { play->setPushed(false); }
+            if (this->mScene) { mScene->reset(); }
+        });
+
+        PopupButton *load = new PopupButton(tools, "LOAD");
+        load->setFixedSize(toolSize);
+        load->setCallback([=] {
+            if (this->mSceneIsPlaying) { play->setPushed(false); }
+            std::cout << "LOAD" << std::endl;
+        });
+
+        Popup *popup = load->popup();
+        popup->setLayout(new GroupLayout());
+        Label *label = new Label(popup, "Scenes:");
+
+        for (auto const &entry : SceneCreators) {
+            Button *sceneButton = new Button(popup, entry.first);
+            sceneButton->setCallback([=, &entry] {
+                load->setPushed(false);
+                loadScene(entry.first);
+            });
+        }
+
         mScreen->performLayout();
+    }
+
+    void Application::loadScene(std::string formattedName) {
+        auto sceneCreator = SceneCreators[formattedName];
+
+        mScene = std::move(sceneCreator());
+        mScene->reset();
+    }
+
+    int Application::run() {
+        mScreen->drawAll();
+        mScreen->setVisible(true);
 
         nanogui::mainloop();
 
         return 0;
+    }
+
+    Application::Screen::Screen(const Eigen::Vector2i &size, const std::string &caption, bool resizable,
+                                bool fullscreen, int colorBits, int alphaBits, int depthBits, int stencilBits,
+                                int nSamples) : nanogui::Screen(size, caption,
+                                                                resizable,
+                                                                fullscreen,
+                                                                colorBits, alphaBits,
+                                                                depthBits,
+                                                                stencilBits,
+                                                                nSamples,
+                                                                4, 1) {}
+
+    void Application::Screen::drawContents() {
+
+    }
+
+    bool Application::Screen::keyboardEvent(int key, int scancode, int action, int modifiers) {
+        if (Widget::keyboardEvent(key, scancode, action, modifiers)) {
+            return true;
+        }
+        std::cout << "keyboardEvent" << std::endl;
+        return false;
+    }
+
+    bool Application::Screen::mouseButtonEvent(const Eigen::Vector2i &p, int button, bool down, int modifiers) {
+        if (Widget::mouseButtonEvent(p, button, down, modifiers)) {
+            return true;
+        }
+        std::cout << "mouseButtonEvent" << std::endl;
+        return false;
+    }
+
+    bool Application::Screen::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button,
+                                               int modifiers) {
+        if (Widget::mouseMotionEvent(p, rel, button, modifiers)) {
+            return true;
+        }
+        std::cout << "mouseMotionEvent" << std::endl;
+        return false;
+    }
+
+    bool Application::Screen::scrollEvent(const Eigen::Vector2i &p, const Eigen::Vector2f &rel) {
+        if (Widget::scrollEvent(p, rel)) {
+            return true;
+        }
+        std::cout << "scrollEvent" << std::endl;
+        return false;
     }
 }

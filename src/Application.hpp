@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <map>
 #include <nanogui/nanogui.h>
 #include <CL/cl.hpp>
 
@@ -21,6 +22,8 @@ namespace clgl {
 
         ~Application();
 
+        static void addSceneCreator(std::string formattedName, std::function<std::unique_ptr<BaseScene>(void)> sceneCreator);
+
         int run();
 
     private:
@@ -32,6 +35,10 @@ namespace clgl {
 
         bool trySelectDevice(int commandLineDeviceIndex = -1);
 
+        void createConfigGUI();
+
+        void loadScene(std::string formattedName);
+
         cl::Platform mPlatform;
 
         cl::Device mDevice;
@@ -40,10 +47,32 @@ namespace clgl {
 
         cl::CommandQueue mQueue;
 
-        /// The screen that contains the application's visuals
-        std::unique_ptr<nanogui::Screen> mScreen;
+        static std::map<std::string, std::function<std::unique_ptr<BaseScene>(void)>> SceneCreators;
 
         /// The "thing" that is "happening" in the app...
         std::unique_ptr<BaseScene> mScene;
+
+        bool mSceneIsPlaying;
+
+        class Screen : public nanogui::Screen {
+        public:
+            Screen(const Eigen::Vector2i &size, const std::string &caption,
+                   bool resizable = true, bool fullscreen = false, int colorBits = 8,
+                   int alphaBits = 8, int depthBits = 24, int stencilBits = 8,
+                   int nSamples = 0);
+
+            virtual void drawContents() override;
+
+            virtual bool keyboardEvent(int key, int scancode, int action, int modifiers) override;
+
+            virtual bool mouseButtonEvent(const Eigen::Vector2i &p, int button, bool down, int modifiers) override;
+
+            virtual bool mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button, int modifiers) override;
+
+            virtual bool scrollEvent(const Eigen::Vector2i &p, const Eigen::Vector2f &rel) override;
+        };
+
+        /// The screen that contains the application's visuals
+        std::unique_ptr<Screen> mScreen;
     };
 }
