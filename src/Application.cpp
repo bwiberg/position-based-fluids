@@ -1,7 +1,8 @@
 #include "Application.hpp"
 
-#include <util/make_unique.hpp>
 #include <iostream>
+#include <algorithm>
+#include <util/make_unique.hpp>
 
 #ifdef __linux__
 #define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
@@ -13,31 +14,22 @@
 
 namespace clgl {
     Application::Application(int argc, char *argv[]) {
+        // Read command line arguments
         std::vector<std::string> args;
-
         for (unsigned int argn = 0; argn < argc; ++argn) {
             args.push_back(std::string(argv[argn]));
         }
 
-        for (auto arg : args) {
-            std::cout << arg << std::endl;
-        }
-
         int desiredPlatformIndex = -1;
-        if (args.size() >= 2) {
-            desiredPlatformIndex = std::stoi(args[2]);
-        }
-
-        if (!trySelectPlatform(desiredPlatformIndex)) {
-            std::exit(1);
-        }
-
         int desiredDeviceIndex = -1;
-        if (args.size() >= 2) {
-            desiredDeviceIndex = std::stoi(args[2]);
+
+        auto iter = std::find(args.begin(), args.end(), "-cl");
+        if (iter != args.end()) {
+            desiredPlatformIndex = std::stoi(*(++iter));
+            desiredDeviceIndex = std::stoi(*(++iter));
         }
 
-        if (!trySelectDevice(desiredDeviceIndex)) {
+        if (!trySelectPlatform(desiredPlatformIndex) || !trySelectDevice(desiredDeviceIndex)) {
             std::exit(1);
         }
 
@@ -45,8 +37,20 @@ namespace clgl {
 
         nanogui::init();
 
-        mScreen = util::make_unique<nanogui::Screen>(Eigen::Vector2i(500, 700), "NanoGUI test [GL 4.1]",
-                /*resizable*/true, /*fullscreen*/false, /*colorBits*/8,
+        bool fullscreen = false;
+        if (std::find(args.begin(), args.end(), "-f") != args.end()) {
+            fullscreen = true;
+        }
+
+        Eigen::Vector2i windowSize(640, 480);
+        iter = std::find(args.begin(), args.end(), "-w");
+        if (iter != args.end()) {
+            windowSize[0] = std::stoi(*(++iter));
+            windowSize[1] = std::stoi(*(++iter));
+        }
+
+        mScreen = util::make_unique<nanogui::Screen>(windowSize, "NanoGUI test [GL 4.1]",
+                /*resizable*/true, fullscreen, /*colorBits*/8,
                 /*alphaBits*/8, /*depthBits*/24, /*stencilBits*/8,
                 /*nSamples*/0, /*glMajor*/4, /*glMinor*/1);
     }
