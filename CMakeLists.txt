@@ -12,9 +12,13 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 add_subdirectory(external)
 include_directories(${EXTERNAL_INCLUDE_DIRS})
 
+# find all source, header and inline files
+file(GLOB_RECURSE SOURCE_FILES src/*cpp)
+file(GLOB_RECURSE HEADER_FILES src/*hpp)
+set(SOURCE_FILES ${SOURCE_FILES} main.cpp)
+
 include_directories(src)
 
-set(SOURCE_FILES main.cpp)
 add_executable(cl_gl_bootstrap ${SOURCE_FILES})
 
 target_link_libraries(cl_gl_bootstrap ${EXTERNAL_LIBRARIES})

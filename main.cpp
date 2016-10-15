@@ -5,7 +5,8 @@
 #include <bwgl/bwgl.hpp>
 
 #include <tictoc.hpp>
-#include <bwgl/src/Texture.hpp>
+
+#include <Application.hpp>
 
 #ifdef __linux__
 #define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
@@ -75,7 +76,10 @@ void runTestKernel() {
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    clgl::Application app(argc, argv);
+    app.run();
+
     // test glm
     glm::vec3 vector(1.0f, 0.0f, 0.0f);
 
