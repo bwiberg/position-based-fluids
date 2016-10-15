@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <nanogui/nanogui.h>
+#include <CL/cl.hpp>
 
 #include "BaseScene.hpp"
 
@@ -16,12 +17,26 @@ namespace clgl {
          */
         Application(int argc, char *argv[]);
 
-        void run();
+        ~Application();
+
+        int run();
 
     private:
+        bool trySelectPlatform(int commandLinePlatformIndex = -1);
+
+        bool trySelectDevice(int commandLineDeviceIndex = -1);
+
+        void runTestKernel();
+
+        cl::Platform mPlatform;
+
+        cl::Device mDevice;
+
+        cl::Context mContext;
+
 
         /// The screen that contains the application's visuals
-        const std::unique_ptr<nanogui::Screen> mScreen;
+        std::unique_ptr<nanogui::Screen> mScreen;
 
         /// The "thing" that is "happening" in the app...
         std::unique_ptr<BaseScene> mScene;
