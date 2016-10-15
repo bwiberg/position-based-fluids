@@ -38,6 +38,12 @@ else (${GLM_FOUND})
     message(FATAL_ERROR "GLM not found.")
 endif(${GLM_FOUND})
 
+#### ############## ####
+#### #### BWGL #### ####
+#### ############## ####
+add_subdirectory(bwgl)
+message(WARNING ${BWGL_EXTRA_INCLUDE_DIRS})
+
 #### Khronos C++ OpenCL Wrapper API ####
 
 
@@ -45,7 +51,8 @@ endif(${GLM_FOUND})
 set(EXTERNAL_LIBRARIES
         ${OpenCL_LIBRARIES}
         ${OPENGL_LIBRARIES}
-        nanogui)
+        nanogui
+        bwgl)
 
 set(EXTERNAL_INCLUDE_DIRS
         ${OpenCL_INCLUDE_DIRS}
@@ -53,6 +60,8 @@ set(EXTERNAL_INCLUDE_DIRS
         ${NanoGUI_SOURCE_DIR}/include
         ${NANOGUI_EXTRA_INCLUDE_DIRS}
         ${GLM_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_SOURCE_DIR}/bwgl/include
+        ${BWGL_EXTRA_INCLUDE_DIRS}
         ${CMAKE_CURRENT_SOURCE_DIR})
 
 ### Print libraries to CMake output ###

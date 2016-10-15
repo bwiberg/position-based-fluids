@@ -2,8 +2,10 @@
 #include <CL/cl.hpp>
 #include <nanogui/nanogui.h>
 #include <glm/glm.hpp>
+#include <bwgl/bwgl.hpp>
 
 #include <tictoc.hpp>
+#include <bwgl/src/Texture.hpp>
 
 #ifdef __linux__
 #define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
@@ -140,6 +142,10 @@ int main() {
     screen->performLayout();
 
     nanogui::mainloop();
+
+    bwgl::Texture tex(GL_TEXTURE_2D, GL_RGB, GL_UNSIGNED_BYTE);
+    tex.bind();
+    tex.unbind();
 
     nanogui::shutdown();
 

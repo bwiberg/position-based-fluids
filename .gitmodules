@@ -1,3 +1,6 @@
 [submodule "external/nanogui"]
 	path = external/nanogui
 	url = https://github.com/wjakob/nanogui.git
+[submodule "external/bwgl"]
+	path = external/bwgl
+	url = https://github.com/bwiberg/bwgl.git
