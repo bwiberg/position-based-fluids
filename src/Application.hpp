@@ -1,6 +1,8 @@
 #pragma once
 
+#include <string>
 #include <memory>
+#include <vector>
 #include <nanogui/nanogui.h>
 #include <CL/cl.hpp>
 
@@ -22,6 +24,10 @@ namespace clgl {
         int run();
 
     private:
+        bool setupOpenCL(const std::vector<std::string> args);
+
+        bool setupNanoGUI(const std::vector<std::string> args);
+
         bool trySelectPlatform(int commandLinePlatformIndex = -1);
 
         bool trySelectDevice(int commandLineDeviceIndex = -1);
@@ -34,6 +40,7 @@ namespace clgl {
 
         cl::Context mContext;
 
+        cl::CommandQueue mQueue;
 
         /// The screen that contains the application's visuals
         std::unique_ptr<nanogui::Screen> mScreen;

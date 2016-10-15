@@ -20,6 +20,16 @@ namespace clgl {
             args.push_back(std::string(argv[argn]));
         }
 
+        if (!setupOpenCL(args) || !setupNanoGUI(args)) {
+            std::exit(1);
+        }
+    }
+
+    Application::~Application() {
+        nanogui::shutdown();
+    }
+
+    bool Application::setupOpenCL(const std::vector<std::string> args) {
         int desiredPlatformIndex = -1;
         int desiredDeviceIndex = -1;
 
@@ -30,11 +40,18 @@ namespace clgl {
         }
 
         if (!trySelectPlatform(desiredPlatformIndex) || !trySelectDevice(desiredDeviceIndex)) {
-            std::exit(1);
+            return false;
         }
 
         mContext = cl::Context({mDevice});
 
+        //create queue to which we will push commands for the device.
+        mQueue = cl::CommandQueue(mContext, mDevice);
+
+        return true;
+    }
+
+    bool Application::setupNanoGUI(const std::vector<std::string> args) {
         nanogui::init();
 
         bool fullscreen = false;
@@ -43,7 +60,7 @@ namespace clgl {
         }
 
         Eigen::Vector2i windowSize(640, 480);
-        iter = std::find(args.begin(), args.end(), "-w");
+        auto iter = std::find(args.begin(), args.end(), "-w");
         if (iter != args.end()) {
             windowSize[0] = std::stoi(*(++iter));
             windowSize[1] = std::stoi(*(++iter));
@@ -53,10 +70,8 @@ namespace clgl {
                 /*resizable*/true, fullscreen, /*colorBits*/8,
                 /*alphaBits*/8, /*depthBits*/24, /*stencilBits*/8,
                 /*nSamples*/0, /*glMajor*/4, /*glMinor*/1);
-    }
 
-    Application::~Application() {
-        nanogui::shutdown();
+        return true;
     }
 
     bool Application::trySelectPlatform(int commandLinePlatformIndex) {
@@ -148,16 +163,13 @@ namespace clgl {
         int A[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         int B[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0};
 
-        //create queue to which we will push commands for the device.
-        cl::CommandQueue queue(mContext, mDevice);
-
         //write arrays A and B to the device
-        queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, sizeof(int) * 10, A);
-        queue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, sizeof(int) * 10, B);
+        mQueue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, sizeof(int) * 10, A);
+        mQueue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, sizeof(int) * 10, B);
 
 
         //run the kernel
-        cl::KernelFunctor simple_add(cl::Kernel(program, "simple_add"), queue, cl::NullRange, cl::NDRange(10),
+        cl::KernelFunctor simple_add(cl::Kernel(program, "simple_add"), mQueue, cl::NullRange, cl::NDRange(10),
                                      cl::NullRange);
         simple_add(buffer_A, buffer_B, buffer_C);
 
@@ -171,7 +183,7 @@ namespace clgl {
 
         int C[10];
         //read result C from the device to array C
-        queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, sizeof(int) * 10, C);
+        mQueue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, sizeof(int) * 10, C);
 
         std::cout << " result: \n";
         for (int i = 0; i < 10; i++) {
