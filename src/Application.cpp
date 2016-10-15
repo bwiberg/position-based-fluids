@@ -137,64 +137,7 @@ namespace clgl {
         return true;
     }
 
-    // Source: http://simpleopencl.blogspot.com/2013/06/tutorial-simple-start-with-opencl-and-c.html
-    void Application::runTestKernel() {
-        cl::Program::Sources sources;
-
-        // kernel calculates for each element C=A+B
-        std::string kernel_code =
-                "   void kernel simple_add(global const int* A, global const int* B, global int* C){       "
-                        "       C[get_global_id(0)]=A[get_global_id(0)]+B[get_global_id(0)];                 "
-                        "   }                                                                               ";
-        sources.push_back({kernel_code.c_str(), kernel_code.length()});
-
-        cl::Program program(mContext, sources);
-        if (program.build({mDevice}) != CL_SUCCESS) {
-            std::cout << " Error building: " << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice) << "\n";
-            exit(1);
-        }
-
-
-        // create buffers on the device
-        cl::Buffer buffer_A(mContext, CL_MEM_READ_WRITE, sizeof(int) * 10);
-        cl::Buffer buffer_B(mContext, CL_MEM_READ_WRITE, sizeof(int) * 10);
-        cl::Buffer buffer_C(mContext, CL_MEM_READ_WRITE, sizeof(int) * 10);
-
-        int A[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-        int B[] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0};
-
-        //write arrays A and B to the device
-        mQueue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, sizeof(int) * 10, A);
-        mQueue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, sizeof(int) * 10, B);
-
-
-        //run the kernel
-        cl::KernelFunctor simple_add(cl::Kernel(program, "simple_add"), mQueue, cl::NullRange, cl::NDRange(10),
-                                     cl::NullRange);
-        simple_add(buffer_A, buffer_B, buffer_C);
-
-        //alternative way to run the kernel
-        /*cl::Kernel kernel_add=cl::Kernel(program,"simple_add");
-        kernel_add.setArg(0,buffer_A);
-        kernel_add.setArg(1,buffer_B);
-        kernel_add.setArg(2,buffer_C);
-        queue.enqueueNDRangeKernel(kernel_add,cl::NullRange,cl::NDRange(10),cl::NullRange);
-        queue.finish();*/
-
-        int C[10];
-        //read result C from the device to array C
-        mQueue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, sizeof(int) * 10, C);
-
-        std::cout << " result: \n";
-        for (int i = 0; i < 10; i++) {
-            std::cout << C[i] << " ";
-        }
-    }
-
     int Application::run() {
-        std::cout << "Running test-application!" << std::endl;
-        runTestKernel();
-
         mScreen->setVisible(true);
         mScreen->performLayout();
 

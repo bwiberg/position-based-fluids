@@ -32,8 +32,6 @@ namespace clgl {
 
         bool trySelectDevice(int commandLineDeviceIndex = -1);
 
-        void runTestKernel();
-
         cl::Platform mPlatform;
 
         cl::Device mDevice;
