@@ -11,7 +11,7 @@ namespace clgl {
     /// @author Benjamin Wiberg
     class BaseScene {
     public:
-        BaseScene(cl::Context &context, cl::CommandQueue &queue)
+        BaseScene(cl::Context &context, cl::CommandQueue &queue, nanogui::Screen *screen)
             : mContext(context), mQueue(queue) {
         }
 
@@ -19,6 +19,12 @@ namespace clgl {
          * Virtual destructor to enable proper deletion of derived classes.
          */
         virtual ~BaseScene() {}
+
+        /**
+         * Adds this scene's specific GUI components.
+         * @param screen The nanoGUI screen
+         */
+        virtual void addGUI(nanogui::Screen *screen) = 0;
 
         /**
          * Resets the scene to it's initial state.
@@ -29,7 +35,7 @@ namespace clgl {
          * Updates the scene (in some way), by taking a timestep of dt.
          * @param dt The delta time (in seconds) since last frame
          */
-        virtual void update(double dt) = 0;
+        virtual void update() = 0;
 
         /**
          * Renders the scene at its current state.

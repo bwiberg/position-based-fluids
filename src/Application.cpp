@@ -217,6 +217,9 @@ namespace clgl {
         auto sceneCreator = SceneCreators[formattedName];
 
         mScene = std::move(sceneCreator(mContext, mQueue));
+        mScene->addGUI(mScreen.get());
+        mScreen->performLayout();
+
         mScene->reset();
 
         mScreen->setCaption(formattedName);
@@ -247,7 +250,7 @@ namespace clgl {
         if (!mApp.mScene) return;
 
         if (mApp.mSceneIsPlaying) {
-            mApp.mScene->update(1.0f / 30);
+            mApp.mScene->update();
         }
 
         mApp.mScene->render();
