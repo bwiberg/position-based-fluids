@@ -11,8 +11,8 @@ namespace clgl {
     /// @author Benjamin Wiberg
     class BaseScene {
     public:
-        BaseScene(cl::Context &context, cl::CommandQueue &queue)
-            : mContext(context), mQueue(queue) {
+        BaseScene(cl::Context &context, cl::Device &device, cl::CommandQueue &queue)
+            : mContext(context), mDevice(device), mQueue(queue) {
         }
 
         /**
@@ -58,6 +58,8 @@ namespace clgl {
 
     protected:
         cl::Context &mContext;
+
+        cl::Device &mDevice;
 
         cl::CommandQueue &mQueue;
     };

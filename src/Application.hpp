@@ -22,7 +22,7 @@ namespace clgl {
 
         ~Application();
 
-        typedef std::function<std::unique_ptr<BaseScene>(cl::Context&, cl::CommandQueue&)> SceneCreator;
+        typedef std::function<std::unique_ptr<BaseScene>(cl::Context&, cl::Device&, cl::CommandQueue&)> SceneCreator;
 
         static void addSceneCreator(std::string formattedName, SceneCreator sceneCreator);
 

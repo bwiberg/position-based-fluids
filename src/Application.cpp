@@ -216,7 +216,7 @@ namespace clgl {
     void Application::loadScene(std::string formattedName) {
         auto sceneCreator = SceneCreators[formattedName];
 
-        mScene = std::move(sceneCreator(mContext, mQueue));
+        mScene = std::move(sceneCreator(mContext, mDevice, mQueue));
         mScene->addGUI(mScreen.get());
         mScreen->performLayout();
 
