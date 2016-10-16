@@ -3,16 +3,8 @@
 #include <iostream>
 #include <util/make_unique.hpp>
 
-#ifdef __linux__
-#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
-#elif defined _WIN32
-#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
-#elif defined TARGET_OS_MAC
-#define GL_SHARING_EXTENSION "cl_APPLE_gl_sharing"
-#endif
-
 namespace clgl {
-    std::map<std::string, std::function<std::unique_ptr<BaseScene>(void)>> Application::SceneCreators;
+    std::map<std::string, Application::SceneCreator> Application::SceneCreators;
 
     Application::Application(int argc, char *argv[]) {
         // Read command line arguments
@@ -21,7 +13,7 @@ namespace clgl {
             args.push_back(std::string(argv[argn]));
         }
 
-        if (!setupOpenCL(args) || !setupNanoGUI(args)) {
+        if (!setupNanoGUI(args) || !setupOpenCL(args)) {
             std::exit(1);
         }
 
@@ -32,7 +24,8 @@ namespace clgl {
         nanogui::shutdown();
     }
 
-    void Application::addSceneCreator(std::string formattedName, std::function<std::unique_ptr<BaseScene>(void)> sceneCreator) {
+    void Application::addSceneCreator(std::string formattedName,
+                                      SceneCreator sceneCreator) {
         SceneCreators[formattedName] = sceneCreator;
     }
 
@@ -50,7 +43,35 @@ namespace clgl {
             return false;
         }
 
-        mContext = cl::Context({mDevice});
+#ifdef __linux__
+#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
+        cl_context_properties properties[] = {
+            //CL_GL_CONTEXT_KHR, (cl_context_pr
+            //CL_GLX_DISPLAY_KHR, (cl_context_properties) glXGetCurrentDisplay(),
+            //CL_CONTEXT_PLATFORM, (cl_context_properties) platform,
+            0
+        };
+#elif defined _WIN32
+#define GL_SHARING_EXTENSION "cl_khr_gl_sharing"
+        cl_context_properties properties[] = {
+                CL_GL_CONTEXT_KHR, (cl_context_properties) wglGetCurrentContext(),
+                CL_WGL_HDC_KHR, (cl_context_properties) wglGetCurrentDC(),
+                CL_CONTEXT_PLATFORM, (cl_context_properties) platformIds[0],
+                0
+        };
+#elif defined TARGET_OS_MAC
+#define GL_SHARING_EXTENSION "cl_APPLE_gl_sharing"
+        CGLContextObj glContext = CGLGetCurrentContext();
+        CGLShareGroupObj shareGroup = CGLGetShareGroup(glContext);
+        cl_context_properties properties[] = {
+                CL_CONTEXT_PROPERTY_USE_CGL_SHAREGROUP_APPLE,
+                (cl_context_properties) shareGroup,
+                0};
+
+        gcl_gl_set_sharegroup(shareGroup);
+#endif
+
+        mContext = cl::Context({mDevice}, properties);
 
         //create queue to which we will push commands for the device.
         mQueue = cl::CommandQueue(mContext, mDevice);
@@ -73,10 +94,11 @@ namespace clgl {
             windowSize[1] = std::stoi(*(++iter));
         }
 
-        mScreen = util::make_unique<Screen>(windowSize, "NanoGUI test [GL 4.1]",
+        mScreen = std::move(util::make_unique<Screen>(*this,
+                windowSize, "CL-GL Bootstrap",
                 /*resizable*/true, fullscreen, /*colorBits*/8,
                 /*alphaBits*/8, /*depthBits*/24, /*stencilBits*/8,
-                /*nSamples*/0);
+                /*nSamples*/0));
 
         return true;
     }
@@ -148,12 +170,12 @@ namespace clgl {
     void Application::createConfigGUI() {
         using namespace nanogui;
         Window *window = new Window(mScreen.get(), "General Controls");
-        window->setPosition(Eigen::Vector2i(15,15));
+        window->setPosition(Eigen::Vector2i(15, 15));
         window->setLayout(new GroupLayout());
 
         Widget *tools = new Widget(window);
         tools->setLayout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 4));
-        Vector2i toolSize(50,30);
+        Vector2i toolSize(50, 30);
 
         Button *play = new ToolButton(tools, ENTYPO_ICON_PLAY);
         play->setFixedSize(toolSize);
@@ -194,8 +216,10 @@ namespace clgl {
     void Application::loadScene(std::string formattedName) {
         auto sceneCreator = SceneCreators[formattedName];
 
-        mScene = std::move(sceneCreator());
+        mScene = std::move(sceneCreator(mContext, mQueue));
         mScene->reset();
+
+        mScreen->setCaption(formattedName);
     }
 
     int Application::run() {
@@ -207,7 +231,8 @@ namespace clgl {
         return 0;
     }
 
-    Application::Screen::Screen(const Eigen::Vector2i &size, const std::string &caption, bool resizable,
+    Application::Screen::Screen(Application &app,
+                                const Eigen::Vector2i &size, const std::string &caption, bool resizable,
                                 bool fullscreen, int colorBits, int alphaBits, int depthBits, int stencilBits,
                                 int nSamples) : nanogui::Screen(size, caption,
                                                                 resizable,
@@ -216,42 +241,39 @@ namespace clgl {
                                                                 depthBits,
                                                                 stencilBits,
                                                                 nSamples,
-                                                                4, 1) {}
+                                                                4, 1), mApp(app) {}
 
     void Application::Screen::drawContents() {
+        if (!mApp.mScene) return;
 
+        if (mApp.mSceneIsPlaying) {
+            mApp.mScene->update(1.0f / 30);
+        }
+
+        mApp.mScene->render();
     }
 
     bool Application::Screen::keyboardEvent(int key, int scancode, int action, int modifiers) {
-        if (Widget::keyboardEvent(key, scancode, action, modifiers)) {
-            return true;
-        }
-        std::cout << "keyboardEvent" << std::endl;
-        return false;
+        if (Widget::keyboardEvent(key, scancode, action, modifiers)) { return true; }
+        if (!mApp.mScene) { return false; }
+        return !mApp.mScene->keyboardEvent(key, scancode, action, modifiers);
     }
 
     bool Application::Screen::mouseButtonEvent(const Eigen::Vector2i &p, int button, bool down, int modifiers) {
-        if (Widget::mouseButtonEvent(p, button, down, modifiers)) {
-            return true;
-        }
-        std::cout << "mouseButtonEvent" << std::endl;
-        return false;
+        if (Widget::mouseButtonEvent(p, button, down, modifiers)) { return true; }
+        if (!mApp.mScene) { return false; }
+        return !mApp.mScene->mouseButtonEvent(glm::ivec2(p[0], p[1]), button, down, modifiers);
     }
 
-    bool Application::Screen::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button,
-                                               int modifiers) {
-        if (Widget::mouseMotionEvent(p, rel, button, modifiers)) {
-            return true;
-        }
-        std::cout << "mouseMotionEvent" << std::endl;
-        return false;
+    bool Application::Screen::mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button, int modifiers) {
+        if (Widget::mouseMotionEvent(p, rel, button, modifiers)) { return true; }
+        if (!mApp.mScene) { return false; }
+        return !mApp.mScene->mouseMotionEvent(glm::ivec2(p[0], p[1]), glm::vec2(rel[0], rel[1]), button, modifiers);
     }
 
     bool Application::Screen::scrollEvent(const Eigen::Vector2i &p, const Eigen::Vector2f &rel) {
-        if (Widget::scrollEvent(p, rel)) {
-            return true;
-        }
-        std::cout << "scrollEvent" << std::endl;
-        return false;
+        if (Widget::scrollEvent(p, rel)) { return true; }
+        if (!mApp.mScene) { return false; }
+        return !mApp.mScene->scrollEvent(glm::ivec2(p[0], p[1]), glm::vec2(rel[0], rel[1]));
     }
 }

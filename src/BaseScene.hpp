@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+
+#include <CL/cl.hpp>
 #include <nanogui/nanogui.h>
 #include <glm/glm.hpp>
 
@@ -9,7 +11,13 @@ namespace clgl {
     /// @author Benjamin Wiberg
     class BaseScene {
     public:
-        BaseScene() {}
+        BaseScene(cl::Context &context, cl::CommandQueue &queue)
+            : mContext(context), mQueue(queue) {
+        }
+
+        /**
+         * Virtual destructor to enable proper deletion of derived classes.
+         */
         virtual ~BaseScene() {}
 
         /**
@@ -25,9 +33,8 @@ namespace clgl {
 
         /**
          * Renders the scene at its current state.
-         * @param dt
          */
-        virtual void render(double dt) = 0;
+        virtual void render() = 0;
 
         //////////////
         /// EVENTS ///
@@ -42,5 +49,10 @@ namespace clgl {
         virtual bool mouseDragEvent(const glm::ivec2 &p, const glm::ivec2 &rel, int button, int modifiers) { return false; };
 
         virtual bool scrollEvent(const glm::ivec2 &p, const glm::vec2 &rel) { return false; };
+
+    protected:
+        cl::Context &mContext;
+
+        cl::CommandQueue &mQueue;
     };
 }

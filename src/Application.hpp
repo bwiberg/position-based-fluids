@@ -22,7 +22,9 @@ namespace clgl {
 
         ~Application();
 
-        static void addSceneCreator(std::string formattedName, std::function<std::unique_ptr<BaseScene>(void)> sceneCreator);
+        typedef std::function<std::unique_ptr<BaseScene>(cl::Context&, cl::CommandQueue&)> SceneCreator;
+
+        static void addSceneCreator(std::string formattedName, SceneCreator sceneCreator);
 
         int run();
 
@@ -47,7 +49,7 @@ namespace clgl {
 
         cl::CommandQueue mQueue;
 
-        static std::map<std::string, std::function<std::unique_ptr<BaseScene>(void)>> SceneCreators;
+        static std::map<std::string, SceneCreator> SceneCreators;
 
         /// The "thing" that is "happening" in the app...
         std::unique_ptr<BaseScene> mScene;
@@ -56,7 +58,8 @@ namespace clgl {
 
         class Screen : public nanogui::Screen {
         public:
-            Screen(const Eigen::Vector2i &size, const std::string &caption,
+            Screen(Application &app,
+                   const Eigen::Vector2i &size, const std::string &caption,
                    bool resizable = true, bool fullscreen = false, int colorBits = 8,
                    int alphaBits = 8, int depthBits = 24, int stencilBits = 8,
                    int nSamples = 0);
@@ -70,6 +73,9 @@ namespace clgl {
             virtual bool mouseMotionEvent(const Eigen::Vector2i &p, const Eigen::Vector2i &rel, int button, int modifiers) override;
 
             virtual bool scrollEvent(const Eigen::Vector2i &p, const Eigen::Vector2f &rel) override;
+
+        private:
+            Application &mApp;
         };
 
         /// The screen that contains the application's visuals

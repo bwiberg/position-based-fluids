@@ -4,7 +4,7 @@
 
 class HelloScene : public clgl::BaseScene {
 public:
-    HelloScene() {
+    HelloScene(cl::Context &context, cl::CommandQueue &queue) : clgl::BaseScene(context, queue) {
         std::cout << "HelloScene created." << std::endl;
     }
     virtual ~HelloScene() {
@@ -12,12 +12,12 @@ public:
     }
     virtual void reset() override {}
     virtual void update(double dt) override {}
-    virtual void render(double dt) override {}
+    virtual void render() override {}
 };
 
 class WorldScene : public clgl::BaseScene {
 public:
-    WorldScene() {
+    WorldScene(cl::Context &context, cl::CommandQueue &queue) : clgl::BaseScene(context, queue) {
         std::cout << "WorldScene created." << std::endl;
     }
     virtual ~WorldScene() {
@@ -25,13 +25,14 @@ public:
     }
     virtual void reset() override {}
     virtual void update(double dt) override {}
-    virtual void render(double dt) override {}
+    virtual void render() override {}
 };
 
-int main(int argc, char *argv[]) {
-    clgl::Application::addSceneCreator("Hello Scene", [] { return util::make_unique<HelloScene>(); });
-    clgl::Application::addSceneCreator("World Scene", [] { return util::make_unique<WorldScene>(); });
+#define ADD_SCENE(name,class) clgl::Application::addSceneCreator(name, [] (cl::Context &context, cl::CommandQueue &queue) { return util::make_unique<class>(context, queue); });
 
+int main(int argc, char *argv[]) {
+    ADD_SCENE("Hello Scene 2", HelloScene);
+    ADD_SCENE("World Scene 2", WorldScene);
     clgl::Application app(argc, argv);
 
     return app.run();
