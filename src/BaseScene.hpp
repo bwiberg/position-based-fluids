@@ -11,7 +11,7 @@ namespace clgl {
     /// @author Benjamin Wiberg
     class BaseScene {
     public:
-        BaseScene(cl::Context &context, cl::CommandQueue &queue, nanogui::Screen *screen)
+        BaseScene(cl::Context &context, cl::CommandQueue &queue)
             : mContext(context), mQueue(queue) {
         }
 
