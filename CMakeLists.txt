@@ -17,6 +17,10 @@ file(GLOB_RECURSE SOURCE_FILES src/*cpp)
 file(GLOB_RECURSE HEADER_FILES src/*hpp)
 set(SOURCE_FILES ${SOURCE_FILES} main.cpp)
 
+# setup shaders- and kernels directories
+add_definitions(-DSHADERS_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/shaders/")
+add_definitions(-DKERNELS_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/kernels/")
+
 include_directories(src)
 
 add_executable(cl_gl_bootstrap ${SOURCE_FILES})
