@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.4)
-project(cl_gl_bootstrap)
+project(position-based-fluids)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
@@ -23,6 +23,6 @@ add_definitions(-DKERNELS_FOLDER="${CMAKE_CURRENT_SOURCE_DIR}/kernels/")
 
 include_directories(src)
 
-add_executable(cl_gl_bootstrap ${SOURCE_FILES})
+add_executable(pbf ${SOURCE_FILES})
 
-target_link_libraries(cl_gl_bootstrap ${EXTERNAL_LIBRARIES})
+target_link_libraries(pbf ${EXTERNAL_LIBRARIES})
