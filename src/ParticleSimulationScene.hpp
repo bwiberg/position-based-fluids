@@ -20,9 +20,13 @@ namespace pbf {
         virtual void render() override;
 
     private:
-        double mDeltaTime;
 
-        bwgl::Shader mShader;
+
+        float mDeltaTime;
+
+        int mNumParticles;
+
+        std::unique_ptr<bwgl::Shader> mShader;
 
         std::unique_ptr<bwgl::VertexBuffer> mPositionsGL;
         std::unique_ptr<bwgl::VertexBuffer> mVelocitiesGL;
@@ -34,7 +38,9 @@ namespace pbf {
         std::unique_ptr<cl::BufferGL> mVelocitiesCL;
         std::unique_ptr<cl::BufferGL> mDensitiesCL;
 
+        std::vector<cl::Memory> mMemObjects;
+
         std::unique_ptr<cl::Program> mTimestepProgram;
-        std::unique_ptr<cl::KernelFunctor> mTimestepFunctor;
+        std::unique_ptr<cl::Kernel> mTimestepKernel;
     };
 }

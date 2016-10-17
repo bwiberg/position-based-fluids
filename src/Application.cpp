@@ -2,6 +2,11 @@
 
 #include <iostream>
 #include <util/make_unique.hpp>
+#include "util/OCL_CALL.hpp"
+
+#ifdef TARGET_OS_MAC
+#include <CGLCurrent.h>
+#endif
 
 namespace clgl {
     std::map<std::string, Application::SceneCreator> Application::SceneCreators;
@@ -30,6 +35,8 @@ namespace clgl {
     }
 
     bool Application::setupOpenCL(const std::vector<std::string> args) {
+        OCL_ERROR;
+
         int desiredPlatformIndex = -1;
         int desiredDeviceIndex = -1;
 
@@ -71,10 +78,10 @@ namespace clgl {
         gcl_gl_set_sharegroup(shareGroup);
 #endif
 
-        mContext = cl::Context({mDevice}, properties);
+        mContext = OCL_CHECK(cl::Context({mDevice}, properties, NULL, NULL, CL_ERROR));
 
         //create queue to which we will push commands for the device.
-        mQueue = cl::CommandQueue(mContext, mDevice);
+        mQueue = OCL_CHECK(cl::CommandQueue(mContext, mDevice, 0, CL_ERROR));
 
         return true;
     }
@@ -106,7 +113,7 @@ namespace clgl {
     bool Application::trySelectPlatform(int commandLinePlatformIndex) {
         // Get all platforms (drivers)
         std::vector<cl::Platform> allPlatforms;
-        cl::Platform::get(&allPlatforms);
+        OCL_CALL(cl::Platform::get(&allPlatforms));
         if (allPlatforms.size() == 0) {
             std::cerr << "No OpenCL platforms/drivers found. Check your OpenCL installation." << std::endl;
             return false;
@@ -135,7 +142,7 @@ namespace clgl {
 
     bool Application::trySelectDevice(int commandLineDeviceIndex) {
         std::vector<cl::Device> allDevices;
-        mPlatform.getDevices(CL_DEVICE_TYPE_ALL, &allDevices);
+        OCL_CALL(mPlatform.getDevices(CL_DEVICE_TYPE_ALL, &allDevices));
         if (allDevices.size() == 0) {
             std::cerr << " No devices found. Check OpenCL installation!\n";
             return false;
