@@ -101,6 +101,8 @@ namespace pbf {
 
         std::vector<cl::Memory> mMemObjects;
 
+        std::vector<cl::Memory> mMemObjects;
+
         std::unique_ptr<cl::Program> mTimestepProgram;
         std::unique_ptr<cl::Program> mPositionAdjustmentProgram;
         std::unique_ptr<cl::Program> mClipToBoundsProgram;
