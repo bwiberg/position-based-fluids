@@ -5,56 +5,19 @@
 #include "util/make_unique.hpp"
 
 namespace pbf {
+    using util::make_unique;
+    using namespace bwgl;
+    using namespace cl;
+
     ParticleSimulationScene::ParticleSimulationScene(cl::Context &context, cl::Device &device, cl::CommandQueue &queue)
-            : BaseScene(context, device, queue),
-              mDeltaTime(0.001f) {
-
-        using util::make_unique;
-        using namespace bwgl;
-        using namespace cl;
-
-        const unsigned int MAX_PARTICLES = 1000;
-        mNumParticles = 1000;
-
-        glm::vec4 positions[MAX_PARTICLES] = {glm::vec4(0)};
-        glm::vec4 velocities[MAX_PARTICLES];
-        {
-            glm::vec4 velocity(0);
-            float angle;
-            for (int i = 0; i < MAX_PARTICLES; ++i) {
-                angle = (float(i) / MAX_PARTICLES) * 2 * CL_M_PI_F;
-                velocity.x = cosf(angle);
-                velocity.y = sinf(angle);
-                velocities[i] = velocity;
-            }
-        }
-
-        float densities[MAX_PARTICLES] = {0};
+            : BaseScene(context, device, queue) {
 
         /// Setup particle attributes as OpenGL buffers
-        // Each position must be float4 for OpenCL to work
         mPositionsGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mPositionsGL->bind();
-        mPositionsGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, positions);
-        mPositionsGL->unbind();
-        mPositionsCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL->ID());
-        mMemObjects.push_back(*mPositionsCL);
-
-        // Each velocity must be float4 for OpenCL to work
         mVelocitiesGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mVelocitiesGL->bind();
-        mVelocitiesGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, velocities);
-        mVelocitiesGL->unbind();
-        mVelocitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL->ID());
-        mMemObjects.push_back(*mVelocitiesCL);
-
         mDensitiesGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mDensitiesGL->bind();
-        mDensitiesGL->bufferData(sizeof(float) * MAX_PARTICLES, densities);
-        mDensitiesGL->unbind();
-        mDensitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mDensitiesGL->ID());
-        mMemObjects.push_back(*mDensitiesCL);
 
+        /// Create OpenGL vertex array, representing each particle
         mParticles = make_unique<VertexArray>();
         mParticles->bind();
         mParticles->addVertexAttribute(*mPositionsGL, 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
@@ -80,8 +43,6 @@ namespace pbf {
             }
 
             mTimestepKernel = make_unique<Kernel>(*mTimestepProgram, "timestep", &error);
-            OCL_CALL(mTimestepKernel->setArg(0, *mPositionsCL));
-            OCL_CALL(mTimestepKernel->setArg(1, *mVelocitiesCL));
         }
 
         std::cout << "Awesome" << std::endl;
@@ -92,18 +53,56 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::reset() {
+        const unsigned int MAX_PARTICLES = 1000;
+        mNumParticles = 1000;
+        mDeltaTime = 0.001f;
 
+        glm::vec4 positions[MAX_PARTICLES] = {glm::vec4(0)};
+        glm::vec4 velocities[MAX_PARTICLES];
+        {
+            glm::vec4 velocity(0);
+            float angle;
+            for (int i = 0; i < MAX_PARTICLES; ++i) {
+                angle = (float(i) / MAX_PARTICLES) * 2 * CL_M_PI_F;
+                velocity.x = cosf(angle);
+                velocity.y = sinf(angle);
+                velocities[i] = velocity;
+            }
+        }
+
+        float densities[MAX_PARTICLES] = {0};
+
+        mPositionsGL->bind();
+        mPositionsGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, positions);
+        mPositionsGL->unbind();
+
+        mVelocitiesGL->bind();
+        mVelocitiesGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, velocities);
+        mVelocitiesGL->unbind();
+
+        mDensitiesGL->bind();
+        mDensitiesGL->bufferData(sizeof(float) * MAX_PARTICLES, densities);
+        mDensitiesGL->unbind();
+
+        mPositionsCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL->ID());
+        mMemObjects.push_back(*mPositionsCL);
+        mVelocitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL->ID());
+        mMemObjects.push_back(*mVelocitiesCL);
+        mDensitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mDensitiesGL->ID());
+        mMemObjects.push_back(*mDensitiesCL);
+
+        OCL_CALL(mTimestepKernel->setArg(0, *mPositionsCL));
+        OCL_CALL(mTimestepKernel->setArg(1, *mVelocitiesCL));
+        OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
     }
 
     void ParticleSimulationScene::update() {
         std::cout << "update" << std::endl;
-        const double currentTime = glfwGetTime();
-        OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
 
         cl::Event event;
         OCL_CALL(mQueue.enqueueAcquireGLObjects(&mMemObjects));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mTimestepKernel, cl::NullRange,
-                                             cl::NDRange(static_cast<size_t>(mNumParticles), 1), cl::NullRange));
+                                             cl::NDRange(mNumParticles, 1), cl::NullRange));
         OCL_CALL(mQueue.enqueueReleaseGLObjects(&mMemObjects, NULL, &event));
         OCL_CALL(event.wait());
     }
