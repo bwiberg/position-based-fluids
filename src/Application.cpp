@@ -194,7 +194,7 @@ namespace clgl {
         Button *reset = new Button(tools, "", ENTYPO_ICON_LEVEL_UP);
         reset->setFixedSize(toolSize);
         reset->setCallback([=] {
-            if (this->mSceneIsPlaying) { play->setPushed(false); }
+            if (this->mSceneIsPlaying) { play->setPushed(false); this->mSceneIsPlaying = false; }
             if (this->mScene) { mScene->reset(); }
         });
 
