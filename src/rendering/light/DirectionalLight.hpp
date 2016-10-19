@@ -24,11 +24,11 @@ namespace clgl {
         glm::vec3 mLightDirection;
     };
 
-    const glm::vec3 &DirectionalLight::getLightDirection() const {
+    inline const glm::vec3 &DirectionalLight::getLightDirection() const {
         return mLightDirection;
     }
 
-    void DirectionalLight::setLightDirection(const glm::vec3 &lightDirection) {
+    inline void DirectionalLight::setLightDirection(const glm::vec3 &lightDirection) {
         mLightDirection = lightDirection;
     }
 }
