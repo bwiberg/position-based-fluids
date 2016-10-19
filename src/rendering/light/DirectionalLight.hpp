@@ -29,6 +29,6 @@ namespace clgl {
     }
 
     inline void DirectionalLight::setLightDirection(const glm::vec3 &lightDirection) {
-        mLightDirection = lightDirection;
+        mLightDirection = glm::normalize(lightDirection);
     }
 }
