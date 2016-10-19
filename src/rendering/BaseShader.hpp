@@ -3,7 +3,7 @@
 #include <glm/glm.hpp>
 #include <bwgl/bwgl.hpp>
 
-namespace pbf {
+namespace clgl {
     /// @brief //todo add brief description to BaseShader
     /// @author Benjamin Wiberg
     class BaseShader : public bwgl::Shader {

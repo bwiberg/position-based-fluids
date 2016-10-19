@@ -1,7 +1,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "Camera.hpp"
 
-namespace pbf {
+namespace clgl {
     const float Camera::DEFAULT_Z_NEAR = 1.0f;
     const float Camera::DEFAULT_Z_FAR = 1000.0f;
 

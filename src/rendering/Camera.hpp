@@ -2,7 +2,7 @@
 
 #include "SceneObject.hpp"
 
-namespace pbf {
+namespace clgl {
     /// @brief //todo add brief description to Camera
     /// @author Benjamin Wiberg
     class Camera : public SceneObject {

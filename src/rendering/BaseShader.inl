@@ -1,6 +1,6 @@
 #include <glm/gtc/type_ptr.hpp>
 
-namespace pbf {
+namespace clgl {
     inline BaseShader::BaseShader(const std::unordered_map<GLuint, std::string> &stages)
             : Shader(stages) {}
 
