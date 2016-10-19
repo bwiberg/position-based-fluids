@@ -53,7 +53,7 @@ namespace pbf {
     inline glm::mat4 SceneObject::getParentTransform() const {
         auto parent = getParent();
         if (parent) {
-            return parentTransform = parent->getTransform();
+            return parent->getTransform();
         }
 
         return glm::mat4(1.0f);
