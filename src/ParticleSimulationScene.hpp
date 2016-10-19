@@ -4,6 +4,8 @@
 
 #include <bwgl/bwgl.hpp>
 
+#include "rendering/BaseShader.hpp"
+
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
     /// @author Benjamin Wiberg
@@ -26,7 +28,7 @@ namespace pbf {
 
         int mNumParticles;
 
-        std::unique_ptr<bwgl::Shader> mShader;
+        std::unique_ptr<BaseShader> mShader;
 
         std::unique_ptr<bwgl::VertexBuffer> mPositionsGL;
         std::unique_ptr<bwgl::VertexBuffer> mVelocitiesGL;

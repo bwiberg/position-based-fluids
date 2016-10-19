@@ -26,10 +26,10 @@ namespace pbf {
         mParticles->unbind();
 
         /// Setup shaders
-        mShader = std::unique_ptr<Shader>(bwgl::Shader::create()
-                                                  .vertex(SHADERPATH("simple.vert"))
-                                                  .fragment(SHADERPATH("simple.frag"))
-                                                  .buildDynamic());
+        mShader = make_unique<BaseShader>(
+                std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("simple.vert")},
+                                                        {GL_FRAGMENT_SHADER, SHADERPATH("simple.frag")}});
+        mShader->compile();
 
         /// Setup timestep kernel
         std::string kernelSource = "";
@@ -111,6 +111,7 @@ namespace pbf {
         std::cout << "render" << std::endl;
 
         mShader->use();
+        mShader->uniform("Color", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
         mParticles->bind();
         OGL_CALL(glPointSize(2.0f));
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
