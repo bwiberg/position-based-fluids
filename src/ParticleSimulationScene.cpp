@@ -65,12 +65,36 @@ namespace pbf {
                 std::move(boxMesh),
                 mBoxShader
         );
+
+        /// Create lights
+        mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.8f, 0.8f, 1.0f), 1.0f);
+        mDirLight = std::make_shared<clgl::DirectionalLight>(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
     }
 
     void ParticleSimulationScene::addGUI(nanogui::Screen *screen) {
         auto size = screen->size();
+
         mCamera->setScreenDimensions(glm::uvec2(size[0], size[1]));
         mCamera->setClipPlanes(0.01f, 100.f);
+
+        using namespace nanogui;
+        Window *win = new Window(screen, "Scene Controls");
+        win->setPosition(Eigen::Vector2i(15, 125));
+        win->setLayout(new GroupLayout());
+
+        Label *ambLabel = new Label(win, "Ambient Intensity");
+        Slider *ambIntensity = new Slider(win);
+        ambIntensity->setCallback([&](float value){
+            std::cout << "Ambient Intensity: " << value << std::endl;
+            mAmbLight->setIntensity(value);
+        });
+
+        Label *dirLabel = new Label(win, "Directional Intensity");
+        Slider *dirIntensity = new Slider(win);
+        dirIntensity->setCallback([&](float value){
+            std::cout << "Directional Intensity: " << value << std::endl;
+            mDirLight->setIntensity(value);
+        });
     }
 
     void ParticleSimulationScene::reset() {
@@ -117,6 +141,7 @@ namespace pbf {
         OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
 
         mCamera->setPosition(glm::vec3(0.0f, 0.0f, 15.0f));
+        mDirLight->setLightDirection(glm::vec3(-1.0f));
     }
 
     void ParticleSimulationScene::update() {
@@ -142,8 +167,9 @@ namespace pbf {
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
         mParticles->unbind();
 
+        mAmbLight->setUniformsInShader(mBoxShader, "ambLight.");
+        mDirLight->setUniformsInShader(mBoxShader, "dirLight.");
         mBoundingBox->render(viewProjection);
-
     }
 
     //////////////////////

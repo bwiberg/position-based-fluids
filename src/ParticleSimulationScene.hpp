@@ -7,6 +7,8 @@
 #include "rendering/BaseShader.hpp"
 #include "rendering/Camera.hpp"
 #include "rendering/MeshObject.hpp"
+#include "rendering/light/DirectionalLight.hpp"
+#include "rendering/light/AmbientLight.hpp"
 
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
@@ -35,6 +37,9 @@ namespace pbf {
         std::shared_ptr<clgl::SceneObject> mCameraRotator;
 
         std::shared_ptr<clgl::MeshObject> mBoundingBox;
+
+        std::shared_ptr<clgl::DirectionalLight> mDirLight;
+        std::shared_ptr<clgl::AmbientLight> mAmbLight;
 
         bool mIsRotatingCamera;
 
