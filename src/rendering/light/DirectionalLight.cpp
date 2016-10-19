@@ -3,11 +3,9 @@
 namespace clgl {
     DirectionalLight::DirectionalLight(const glm::vec3 &color,
                                        float intensity,
-                                       const glm::vec3 &lightDirection,
-                                       const Attenuation &att)
+                                       const glm::vec3 &lightDirection)
             : Light(color, intensity),
-              mLightDirection(lightDirection),
-              mAttenuation(att) {}
+              mLightDirection(lightDirection) {}
 
     void DirectionalLight::setUniformsInShader(std::shared_ptr<clgl::BaseShader> shader,
                                                const std::string &prefix) {
@@ -16,7 +14,5 @@ namespace clgl {
         shader->uniform(prefix + "color", mColor);
         shader->uniform(prefix + "intensity", mIntensity);
         shader->uniform(prefix + "dir", transformedLightDirection);
-        shader->uniform(prefix + "att.a", mAttenuation.a);
-        shader->uniform(prefix + "att.b", mAttenuation.b);
     }
 }
