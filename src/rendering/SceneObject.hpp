@@ -5,7 +5,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-namespace pbf {
+namespace clgl {
     /// @brief //todo add brief description to SceneObject
     /// @author Benjamin Wiberg
     class SceneObject {
@@ -48,6 +48,12 @@ namespace pbf {
          */
         inline void setOrientation(const glm::quat &orientation) {
             mOrientation = orientation;
+            recalcEulerFromQuat();
+        }
+
+        inline void setEulerAngles(const glm::vec3 &eulerAngles) {
+            mEulerAngles = eulerAngles;
+            recalcQuatFromEuler();
         }
 
         inline void setScale(float scale) {
@@ -55,10 +61,10 @@ namespace pbf {
         }
 
         /**
-         * Attaches this SceneObject to another SceneObject, effectively shifting this SceneObject's frame.
+         * Attaches a SceneObject to another SceneObject, effectively shifting the child's SceneObject's frame.
          * @param parent The new parent
          */
-        void attachToParent(std::shared_ptr<SceneObject> parent);
+        static void attach(std::shared_ptr<SceneObject> parent, std::shared_ptr<SceneObject> child);
 
         /**
          * Detaches this SceneObject from its parent (if it has one).
@@ -79,6 +85,10 @@ namespace pbf {
             return mOrientation;
         }
 
+        inline const glm::vec3 &getEulerAngles() const {
+            return mEulerAngles;
+        }
+
         inline float getScale() const {
             return mScale;
         }
@@ -90,6 +100,8 @@ namespace pbf {
 
         glm::quat mOrientation;
 
+        glm::vec3 mEulerAngles;
+
         float mScale;
 
         std::vector<std::shared_ptr<SceneObject>> mChildren;
@@ -98,5 +110,9 @@ namespace pbf {
 
     private:
         glm::mat4 getParentTransform() const;
+
+        void recalcEulerFromQuat();
+
+        void recalcQuatFromEuler();
     };
 }

@@ -4,9 +4,11 @@
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-namespace pbf {
+namespace clgl {
     SceneObject::SceneObject(const glm::vec3 &position, const glm::quat &orientation, float scale)
-            : mPosition(position), mOrientation(orientation), mScale(scale) {}
+            : mPosition(position), mOrientation(orientation), mScale(scale) {
+        recalcEulerFromQuat();
+    }
 
     SceneObject::~SceneObject() {}
 
@@ -16,16 +18,17 @@ namespace pbf {
 
     void SceneObject::rotate(const glm::quat &rotation) {
         mOrientation = rotation * mOrientation;
+        recalcEulerFromQuat();
     }
 
     void SceneObject::scale(float scale) {
         mScale *= scale;
     }
 
-    void SceneObject::attachToParent(std::shared_ptr<SceneObject> parent) {
-        detachFromParent();
-        parent->mChildren.push_back(std::shared_ptr<SceneObject>(this));
-        mParent = std::weak_ptr<SceneObject>(parent);
+    void SceneObject::attach(std::shared_ptr<SceneObject> parent, std::shared_ptr<SceneObject> child) {
+        child->detachFromParent();
+        parent->mChildren.push_back(child);
+        child->mParent = std::weak_ptr<SceneObject>(parent);
     }
 
     void SceneObject::detachFromParent() {
@@ -36,6 +39,8 @@ namespace pbf {
 
             parentsChildren.erase(std::remove(parentsChildren.begin(), parentsChildren.end(), sharedThis), parentsChildren.end());
         }
+
+        mParent = std::weak_ptr<SceneObject>();
     }
 
     std::shared_ptr<const SceneObject> SceneObject::getParent() const {
@@ -57,5 +62,13 @@ namespace pbf {
         }
 
         return glm::mat4(1.0f);
+    }
+
+    void SceneObject::recalcEulerFromQuat() {
+        mEulerAngles = glm::eulerAngles(mOrientation);
+    }
+
+    void SceneObject::recalcQuatFromEuler() {
+        mOrientation = glm::quat(mEulerAngles);
     }
 }
