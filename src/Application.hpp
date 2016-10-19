@@ -86,6 +86,7 @@ namespace clgl {
 
             virtual void drawAll() override;
 
+            virtual bool resizeEvent(const Eigen::Vector2i &i) override;
 
         private:
             Application &mApp;
