@@ -4,6 +4,8 @@
 #include "util/OCL_CALL.hpp"
 #include "util/make_unique.hpp"
 
+#include "geometry/Primitives.hpp"
+
 namespace pbf {
     using util::make_unique;
     using namespace bwgl;
@@ -26,10 +28,15 @@ namespace pbf {
         mParticles->unbind();
 
         /// Setup shaders
-        mShader = make_unique<BaseShader>(
+        mParticlesShader = make_unique<clgl::BaseShader>(
                 std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("particles.vert")},
                                                         {GL_FRAGMENT_SHADER, SHADERPATH("particles.frag")}});
-        mShader->compile();
+        mParticlesShader->compile();
+
+        mBoxShader = std::make_shared<clgl::BaseShader>(
+                std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("box.vert")},
+                                                        {GL_FRAGMENT_SHADER, SHADERPATH("box.frag")}});
+        mBoxShader->compile();
 
         /// Setup timestep kernel
         std::string kernelSource = "";
@@ -48,13 +55,22 @@ namespace pbf {
         std::cout << "Awesome" << std::endl;
 
         /// Create camera
-        mCamera = make_unique<Camera>(glm::uvec2(100, 100), 50);
+        mCameraRotator = std::make_shared<clgl::SceneObject>();
+        mCamera = std::make_shared<clgl::Camera>(glm::uvec2(100, 100), 50);
+        clgl::SceneObject::attach(mCameraRotator, mCamera);
+
+        /// Create geometry
+        auto boxMesh = clgl::Primitives::createBox(glm::vec3(1.0f, 1.0f, 1.0f));
+        mBoundingBox = std::make_shared<clgl::MeshObject>(
+                std::move(boxMesh),
+                mBoxShader
+        );
     }
 
     void ParticleSimulationScene::addGUI(nanogui::Screen *screen) {
         auto size = screen->size();
         mCamera->setScreenDimensions(glm::uvec2(size[0], size[1]));
-        mCamera->setClipPlanes(0.01f, 10.f);
+        mCamera->setClipPlanes(0.01f, 100.f);
     }
 
     void ParticleSimulationScene::reset() {
@@ -100,7 +116,7 @@ namespace pbf {
         OCL_CALL(mTimestepKernel->setArg(1, *mVelocitiesCL));
         OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
 
-        mCamera->setPosition(glm::vec3(0.0f, 0.0f, -1.0f));
+        mCamera->setPosition(glm::vec3(0.0f, 0.0f, 15.0f));
     }
 
     void ParticleSimulationScene::update() {
@@ -113,13 +129,21 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::render() {
-        mShader->use();
-        mShader->uniform("Color", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
-        mShader->uniform("MVP", mCamera->getPerspectiveTransform() * mCamera->getTransform());
+        OGL_CALL(glEnable(GL_DEPTH_TEST));
+        OGL_CALL(glCullFace(GL_BACK));
+
+        const glm::mat4 viewProjection = mCamera->getPerspectiveTransform() * glm::inverse(mCamera->getTransform());
+
+        mParticlesShader->use();
+        mParticlesShader->uniform("Color", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+        mParticlesShader->uniform("MVP", viewProjection);
         mParticles->bind();
-        OGL_CALL(glPointSize(2.0f));
+        OGL_CALL(glPointSize(5.0f));
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
         mParticles->unbind();
+
+        mBoundingBox->render(viewProjection);
+
     }
 
     //////////////////////
@@ -127,13 +151,28 @@ namespace pbf {
     //////////////////////
 
     bool ParticleSimulationScene::mouseButtonEvent(const glm::ivec2 &p, int button, bool down, int modifiers) {
-        std::cout << "MouseButtonEvent" << std::endl;
+        if (button == GLFW_MOUSE_BUTTON_LEFT && down) {
+            mIsRotatingCamera = true;
+        } else if (button == GLFW_MOUSE_BUTTON_LEFT && !down) {
+            mIsRotatingCamera = false;
+        }
+
         return false;
     }
 
     bool
     ParticleSimulationScene::mouseMotionEvent(const glm::ivec2 &p, const glm::ivec2 &rel, int button, int modifiers) {
-        std::cout << "MouseMotionEvent" << std::endl;
+        if (mIsRotatingCamera) {
+            std::cout << "Rotate camera, x=" << rel.x << ", y=" << rel.y << std::endl;
+
+            glm::vec3 eulerAngles = mCameraRotator->getEulerAngles();
+            eulerAngles.x += 0.05f * rel.y;
+            eulerAngles.y += 0.05f * rel.x;
+            mCameraRotator->setEulerAngles(eulerAngles);
+
+            return true;
+        }
+
         return false;
     }
 

@@ -6,6 +6,7 @@
 
 #include "rendering/BaseShader.hpp"
 #include "rendering/Camera.hpp"
+#include "rendering/MeshObject.hpp"
 
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
@@ -29,13 +30,20 @@ namespace pbf {
         virtual bool resizeEvent(const glm::ivec2 &p) override;
 
     private:
-        std::unique_ptr<pbf::Camera> mCamera;
+        std::shared_ptr<clgl::Camera> mCamera;
+
+        std::shared_ptr<clgl::SceneObject> mCameraRotator;
+
+        std::shared_ptr<clgl::MeshObject> mBoundingBox;
+
+        bool mIsRotatingCamera;
 
         float mDeltaTime;
 
         int mNumParticles;
 
-        std::unique_ptr<BaseShader> mShader;
+        std::unique_ptr<clgl::BaseShader> mParticlesShader;
+        std::shared_ptr<clgl::BaseShader> mBoxShader;
 
         std::unique_ptr<bwgl::VertexBuffer> mPositionsGL;
         std::unique_ptr<bwgl::VertexBuffer> mVelocitiesGL;
