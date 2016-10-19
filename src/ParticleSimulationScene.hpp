@@ -5,6 +5,7 @@
 #include <bwgl/bwgl.hpp>
 
 #include "rendering/BaseShader.hpp"
+#include "rendering/Camera.hpp"
 
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
@@ -22,7 +23,7 @@ namespace pbf {
         virtual void render() override;
 
     private:
-
+        std::unique_ptr<pbf::Camera> mCamera;
 
         float mDeltaTime;
 

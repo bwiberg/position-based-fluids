@@ -27,8 +27,8 @@ namespace pbf {
 
         /// Setup shaders
         mShader = make_unique<BaseShader>(
-                std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("simple.vert")},
-                                                        {GL_FRAGMENT_SHADER, SHADERPATH("simple.frag")}});
+                std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("particles.vert")},
+                                                        {GL_FRAGMENT_SHADER, SHADERPATH("particles.frag")}});
         mShader->compile();
 
         /// Setup timestep kernel
@@ -46,10 +46,15 @@ namespace pbf {
         }
 
         std::cout << "Awesome" << std::endl;
+
+        /// Create camera
+        mCamera = make_unique<Camera>(glm::uvec2(100, 100), 50);
     }
 
     void ParticleSimulationScene::addGUI(nanogui::Screen *screen) {
-
+        auto size = screen->size();
+        mCamera->setScreenDimensions(glm::uvec2(size[0], size[1]));
+        mCamera->setClipPlanes(0.01f, 10.f);
     }
 
     void ParticleSimulationScene::reset() {
@@ -94,6 +99,8 @@ namespace pbf {
         OCL_CALL(mTimestepKernel->setArg(0, *mPositionsCL));
         OCL_CALL(mTimestepKernel->setArg(1, *mVelocitiesCL));
         OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
+
+        mCamera->setPosition(glm::vec3(0.0f, 0.0f, -1.0f));
     }
 
     void ParticleSimulationScene::update() {
@@ -112,6 +119,7 @@ namespace pbf {
 
         mShader->use();
         mShader->uniform("Color", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
+        mShader->uniform("MVP", mCamera->getPerspectiveTransform() * mCamera->getTransform());
         mParticles->bind();
         OGL_CALL(glPointSize(2.0f));
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
