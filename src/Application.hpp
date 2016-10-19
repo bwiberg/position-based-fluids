@@ -74,6 +74,8 @@ namespace clgl {
 
             virtual bool scrollEvent(const Eigen::Vector2i &p, const Eigen::Vector2f &rel) override;
 
+            virtual bool resizeEvent(const Eigen::Vector2i &i) override;
+
         private:
             Application &mApp;
         };

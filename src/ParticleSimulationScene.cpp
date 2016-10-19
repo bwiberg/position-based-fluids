@@ -104,8 +104,6 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::update() {
-        std::cout << "update" << std::endl;
-
         cl::Event event;
         OCL_CALL(mQueue.enqueueAcquireGLObjects(&mMemObjects));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mTimestepKernel, cl::NullRange,
@@ -115,8 +113,6 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::render() {
-        std::cout << "render" << std::endl;
-
         mShader->use();
         mShader->uniform("Color", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
         mShader->uniform("MVP", mCamera->getPerspectiveTransform() * mCamera->getTransform());
@@ -124,5 +120,25 @@ namespace pbf {
         OGL_CALL(glPointSize(2.0f));
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
         mParticles->unbind();
+    }
+
+    //////////////////////
+    /// INPUT HANDLING ///
+    //////////////////////
+
+    bool ParticleSimulationScene::mouseButtonEvent(const glm::ivec2 &p, int button, bool down, int modifiers) {
+        std::cout << "MouseButtonEvent" << std::endl;
+        return false;
+    }
+
+    bool
+    ParticleSimulationScene::mouseMotionEvent(const glm::ivec2 &p, const glm::ivec2 &rel, int button, int modifiers) {
+        std::cout << "MouseMotionEvent" << std::endl;
+        return false;
+    }
+
+    bool ParticleSimulationScene::resizeEvent(const glm::ivec2 &p) {
+        std::cout << "Rezize event" << std::endl;
+        return false;
     }
 }

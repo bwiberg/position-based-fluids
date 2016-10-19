@@ -22,6 +22,12 @@ namespace pbf {
 
         virtual void render() override;
 
+        virtual bool mouseButtonEvent(const glm::ivec2 &p, int button, bool down, int modifiers) override;
+
+        virtual bool mouseMotionEvent(const glm::ivec2 &p, const glm::ivec2 &rel, int button, int modifiers) override;
+
+        virtual bool resizeEvent(const glm::ivec2 &p) override;
+
     private:
         std::unique_ptr<pbf::Camera> mCamera;
 

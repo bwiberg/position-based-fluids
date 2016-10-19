@@ -56,6 +56,8 @@ namespace clgl {
 
         virtual bool scrollEvent(const glm::ivec2 &p, const glm::vec2 &rel) { return false; };
 
+        virtual bool resizeEvent(const glm::ivec2 &p) { return false; }
+
     protected:
         cl::Context &mContext;
 

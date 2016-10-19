@@ -106,6 +106,7 @@ namespace clgl {
                 /*resizable*/true, fullscreen, /*colorBits*/8,
                 /*alphaBits*/8, /*depthBits*/24, /*stencilBits*/8,
                 /*nSamples*/0));
+        glfwSwapInterval(1);
 
         return true;
     }
@@ -285,5 +286,9 @@ namespace clgl {
         if (Widget::scrollEvent(p, rel)) { return true; }
         if (!mApp.mScene) { return false; }
         return !mApp.mScene->scrollEvent(glm::ivec2(p[0], p[1]), glm::vec2(rel[0], rel[1]));
+    }
+
+    bool Application::Screen::resizeEvent(const Eigen::Vector2i &i) {
+        return !mApp.mScene->resizeEvent(glm::ivec2(i[0], i[1]));
     }
 }
