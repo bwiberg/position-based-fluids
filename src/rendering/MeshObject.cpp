@@ -37,8 +37,11 @@ namespace clgl {
     }
 
     void MeshObject::render(const glm::mat4 &viewProjection) {
+        const auto transform = getTransform();
+
         mShader->use();
-        mShader->uniform("MVP", viewProjection * getTransform());
+        mShader->uniform("MVP", viewProjection * transform);
+        mShader->uniform("M", transform);
         mVertices.bind();
         glDrawArrays(GL_TRIANGLES, 0, mNumVertices);
         mVertices.unbind();
