@@ -289,6 +289,7 @@ namespace clgl {
     }
 
     bool Application::Screen::resizeEvent(const Eigen::Vector2i &i) {
+        if (!mApp.mScene) { return false; }
         return !mApp.mScene->resizeEvent(glm::ivec2(i[0], i[1]));
     }
 }
