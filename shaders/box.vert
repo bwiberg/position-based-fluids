@@ -8,6 +8,7 @@ layout (location = 3) in vec4 color;
 uniform mat4 M;
 uniform mat4 MVP;
 
+out vec4 WorldPosition;
 out vec3 Normal;
 out vec4 Color;
 
@@ -17,5 +18,6 @@ void main() {
 
     vec4 Position = vec4(position.x, -position.y, position.z, 1.0);
 
+    WorldPosition = M * position;
 	gl_Position = MVP * Position;
 }

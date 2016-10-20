@@ -9,6 +9,7 @@
 #include "rendering/MeshObject.hpp"
 #include "rendering/light/DirectionalLight.hpp"
 #include "rendering/light/AmbientLight.hpp"
+#include "rendering/light/PointLight.hpp"
 
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
@@ -40,6 +41,7 @@ namespace pbf {
 
         std::shared_ptr<clgl::DirectionalLight> mDirLight;
         std::shared_ptr<clgl::AmbientLight> mAmbLight;
+        std::shared_ptr<clgl::PointLight> mPointLight;
 
         bool mIsRotatingCamera;
 

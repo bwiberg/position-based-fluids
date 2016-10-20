@@ -68,8 +68,10 @@ namespace pbf {
         );
 
         /// Create lights
-        mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.8f, 0.8f, 1.0f), 1.0f);
+        mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.3f, 0.3f, 1.0f), 1.0f);
         mDirLight = std::make_shared<clgl::DirectionalLight>(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
+        mPointLight = std::make_shared<clgl::PointLight>(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
+        mPointLight->setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
     }
 
     void ParticleSimulationScene::addGUI(nanogui::Screen *screen) {
@@ -83,19 +85,54 @@ namespace pbf {
         win->setPosition(Eigen::Vector2i(15, 125));
         win->setLayout(new GroupLayout());
 
-        Label *ambLabel = new Label(win, "Ambient Intensity");
+
+        /// Ambient light parameters
+
+        new Label(win, "Ambient Intensity", "sans", 10);
         Slider *ambIntensity = new Slider(win);
         ambIntensity->setCallback([&](float value){
             mAmbLight->setIntensity(value);
         });
         ambIntensity->setValue(mAmbLight->getIntensity());
 
-        Label *dirLabel = new Label(win, "Directional Intensity");
+
+        /// Directional light parameters
+
+        new Label(win, "Directional Intensity", "sans", 10);
         Slider *dirIntensity = new Slider(win);
         dirIntensity->setCallback([&](float value){
             mDirLight->setIntensity(value);
         });
         dirIntensity->setValue(mDirLight->getIntensity());
+
+
+        /// Spot light parameters
+
+        new Label(win, "Point Parameters", "sans", 10);
+        new Label(win, "Intensity");
+        Slider *spotSlider = new Slider(win);
+        spotSlider->setCallback([&](float value){
+            mPointLight->setIntensity(value);
+        });
+        spotSlider->setValue(mPointLight->getIntensity());
+
+        new Label(win, "Attenuation (linear)");
+        spotSlider = new Slider(win);
+        spotSlider->setCallback([&](float value){
+            clgl::Attenuation att = mPointLight->getAttenuation();
+            att.a = value * 10;
+            mPointLight->setAttenuation(att);
+        });
+        spotSlider->setValue(mPointLight->getAttenuation().a / 10);
+
+        new Label(win, "Attenuation (quadratic)");
+        spotSlider = new Slider(win);
+        spotSlider->setCallback([&](float value){
+            clgl::Attenuation att = mPointLight->getAttenuation();
+            att.b = value * 10;
+            mPointLight->setAttenuation(att);
+        });
+        spotSlider->setValue(mPointLight->getAttenuation().b / 10);
     }
 
     void ParticleSimulationScene::reset() {
@@ -170,6 +207,7 @@ namespace pbf {
 
         mAmbLight->setUniformsInShader(mBoxShader, "ambLight.");
         mDirLight->setUniformsInShader(mBoxShader, "dirLight.");
+        mPointLight->setUniformsInShader(mBoxShader, "pointLight.");
         mBoundingBox->render(viewProjection);
     }
 
