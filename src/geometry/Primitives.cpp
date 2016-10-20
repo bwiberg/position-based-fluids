@@ -21,12 +21,12 @@ namespace clgl {
             std::vector<glm::vec4> positions = {
                     // YZ left
                     glm::vec4(-halfx, -halfy, -halfz, 1.0f), // 0
-                    glm::vec4(-halfx, -halfy, halfz, 1.0f),  // 1
                     glm::vec4(-halfx, halfy, -halfz, 1.0f),  // 2
+                    glm::vec4(-halfx, -halfy, halfz, 1.0f),  // 1
 
                     glm::vec4(-halfx, -halfy, halfz, 1.0f),  // 1
-                    glm::vec4(-halfx, halfy, halfz, 1.0f),   // 3
                     glm::vec4(-halfx, halfy, -halfz, 1.0f),  // 2
+                    glm::vec4(-halfx, halfy, halfz, 1.0f),   // 3
 
                     // YZ right
                     glm::vec4(halfx, -halfy, -halfz, 1.0f), // 0
@@ -48,21 +48,21 @@ namespace clgl {
 
                     // XZ top
                     glm::vec4(-halfx, halfy, -halfz, 1.0f), // 0
-                    glm::vec4(-halfx, halfy, halfz, 1.0f),  // 1
                     glm::vec4(halfx, halfy, -halfz, 1.0f),  // 2
+                    glm::vec4(-halfx, halfy, halfz, 1.0f),  // 1
 
                     glm::vec4(-halfx, halfy, halfz, 1.0f),  // 1
-                    glm::vec4(halfx, halfy, halfz, 1.0f),   // 3
                     glm::vec4(halfx, halfy, -halfz, 1.0f),  // 2
+                    glm::vec4(halfx, halfy, halfz, 1.0f),   // 3
 
                     // XY near
                     glm::vec4(-halfx, -halfy, -halfz, 1.0f), // 0
-                    glm::vec4(-halfx, halfy, -halfz, 1.0f),  // 1
                     glm::vec4(halfx, -halfy, -halfz, 1.0f),  // 2
+                    glm::vec4(-halfx, halfy, -halfz, 1.0f),  // 1
 
                     glm::vec4(-halfx, halfy, -halfz, 1.0f),  // 1
-                    glm::vec4(halfx, halfy, -halfz, 1.0f),   // 3
                     glm::vec4(halfx, -halfy, -halfz, 1.0f),  // 2
+                    glm::vec4(halfx, halfy, -halfz, 1.0f),   // 3
 
                     // XZ far
                     glm::vec4(-halfx, -halfy, halfz, 1.0f), // 0
