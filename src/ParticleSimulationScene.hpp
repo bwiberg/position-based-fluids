@@ -11,6 +11,8 @@
 #include "rendering/light/AmbientLight.hpp"
 #include "rendering/light/PointLight.hpp"
 
+#include "simulation/Bounds.hpp"
+
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
     /// @author Benjamin Wiberg
@@ -38,6 +40,7 @@ namespace pbf {
         std::shared_ptr<clgl::SceneObject> mCameraRotator;
 
         std::shared_ptr<clgl::MeshObject> mBoundingBox;
+        std::unique_ptr<pbf::Bounds> mBoundsCL;
 
         std::shared_ptr<clgl::DirectionalLight> mDirLight;
         std::shared_ptr<clgl::AmbientLight> mAmbLight;
@@ -66,5 +69,8 @@ namespace pbf {
 
         std::unique_ptr<cl::Program> mTimestepProgram;
         std::unique_ptr<cl::Kernel> mTimestepKernel;
+
+        std::unique_ptr<cl::Program> mClipToBoundsProgram;
+        std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
     };
 }

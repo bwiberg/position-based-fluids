@@ -1,3 +1,4 @@
+#include <OpenCL/opencl.h>
 #include "ParticleSimulationScene.hpp"
 
 #include "util/paths.hpp"
@@ -53,6 +54,19 @@ namespace pbf {
             mTimestepKernel = make_unique<Kernel>(*mTimestepProgram, "timestep", &error);
         }
 
+        /// Setup "clip to bounds"-kernel
+        if (TryReadFromFile(KERNELPATH("clip_to_bounds.cl"), kernelSource)) {
+            cl_int error;
+            mClipToBoundsProgram = make_unique<Program>(mContext, kernelSource, true, &error);
+            if (error == CL_BUILD_PROGRAM_FAILURE) {
+                std::cerr << "Error building: "
+                          << mClipToBoundsProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
+                          << std::endl;
+            }
+
+            mClipToBoundsKernel = make_unique<Kernel>(*mClipToBoundsProgram, "clip_to_bounds", &error);
+        }
+
         std::cout << "Awesome" << std::endl;
 
         /// Create camera
@@ -67,6 +81,10 @@ namespace pbf {
                 std::move(boxMesh),
                 mBoxShader
         );
+
+        mBoundsCL = make_unique<pbf::Bounds>();
+        mBoundsCL->halfDimensions = {1.0f, 1.0f, 1.0f, 0.0f};
+        mBoundsCL->dimensions = {2.0f, 2.0f, 2.0f, 0.0f};
 
         /// Create lights
         mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.3f, 0.3f, 1.0f), 0.2f);
@@ -140,17 +158,26 @@ namespace pbf {
     void ParticleSimulationScene::reset() {
         const unsigned int MAX_PARTICLES = 1000;
         mNumParticles = 1000;
-        mDeltaTime = 0.001f;
+        mDeltaTime = 0.005f;
 
         glm::vec4 positions[MAX_PARTICLES] = {glm::vec4(0)};
+
+        std::vector<float> polarAngles = util::generate_uniform_floats(1000, -CL_M_PI/2, CL_M_PI/2);
+        std::vector<float> azimuthalAngles = util::generate_uniform_floats(1000, 0.0f, 2 * CL_M_PI);
+
         glm::vec4 velocities[MAX_PARTICLES];
         {
             glm::vec4 velocity(0);
-            float angle;
+            float polar, azimuthal;
+
             for (int i = 0; i < MAX_PARTICLES; ++i) {
-                angle = (float(i) / MAX_PARTICLES) * 2 * CL_M_PI_F;
-                velocity.x = cosf(angle);
-                velocity.y = sinf(angle);
+                polar = polarAngles[i];
+                azimuthal = azimuthalAngles[i];
+
+                velocity.x = sinf(azimuthal) * cosf(polar);
+                velocity.y = cosf(azimuthal);
+                velocity.z = sinf(azimuthal) * sinf(polar);
+
                 velocities[i] = velocity;
             }
         }
@@ -180,6 +207,10 @@ namespace pbf {
         OCL_CALL(mTimestepKernel->setArg(1, *mVelocitiesCL));
         OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
 
+        OCL_CALL(mClipToBoundsKernel->setArg(0, *mPositionsCL));
+        OCL_CALL(mClipToBoundsKernel->setArg(1, *mVelocitiesCL));
+        OCL_CALL(mClipToBoundsKernel->setArg(2, sizeof(pbf::Bounds), mBoundsCL.get()));
+
         mCamera->setPosition(glm::vec3(0.0f, 0.0f, 15.0f));
         mDirLight->setLightDirection(glm::vec3(-1.0f));
     }
@@ -188,6 +219,8 @@ namespace pbf {
         cl::Event event;
         OCL_CALL(mQueue.enqueueAcquireGLObjects(&mMemObjects));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mTimestepKernel, cl::NullRange,
+                                             cl::NDRange(mNumParticles, 1), cl::NullRange));
+        OCL_CALL(mQueue.enqueueNDRangeKernel(*mClipToBoundsKernel, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
         OCL_CALL(mQueue.enqueueReleaseGLObjects(&mMemObjects, NULL, &event));
         OCL_CALL(event.wait());
@@ -246,7 +279,8 @@ namespace pbf {
     }
 
     bool ParticleSimulationScene::resizeEvent(const glm::ivec2 &p) {
-        mCamera->setScreenDimensions(p);
+        mCamera->setScreenDimensions(glm::uvec2(static_cast<unsigned int>(p.x),
+                                                static_cast<unsigned int>(p.y)));
         return false;
     }
 }
