@@ -11,6 +11,8 @@ namespace clgl {
              std::vector<glm::vec4> &&colors,
              std::vector<unsigned int> &&indices);
 
+        void flipNormals();
+
         std::vector<glm::vec4> mPositions;
 
         std::vector<glm::vec4> mNormals;
@@ -33,5 +35,11 @@ namespace clgl {
               mColors(colors),
               mIndices(indices) {
 
+    }
+
+    inline void Mesh::flipNormals() {
+        std::for_each(mNormals.begin(), mNormals.end(), [](glm::vec4 &normal) {
+            normal = - normal;
+        });
     }
 }
