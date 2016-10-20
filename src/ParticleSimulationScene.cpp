@@ -62,16 +62,18 @@ namespace pbf {
 
         /// Create geometry
         auto boxMesh = clgl::Primitives::createBox(glm::vec3(1.0f, 1.0f, 1.0f));
+        boxMesh->flipNormals();
         mBoundingBox = std::make_shared<clgl::MeshObject>(
                 std::move(boxMesh),
                 mBoxShader
         );
 
         /// Create lights
-        mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.3f, 0.3f, 1.0f), 1.0f);
-        mDirLight = std::make_shared<clgl::DirectionalLight>(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
+        mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.3f, 0.3f, 1.0f), 0.2f);
+        mDirLight = std::make_shared<clgl::DirectionalLight>(glm::vec3(1.0f, 1.0f, 1.0f), 0.1f);
         mPointLight = std::make_shared<clgl::PointLight>(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
         mPointLight->setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
+        mPointLight->setAttenuation(clgl::Attenuation(0.1f, 0.1f));
     }
 
     void ParticleSimulationScene::addGUI(nanogui::Screen *screen) {
@@ -193,6 +195,7 @@ namespace pbf {
 
     void ParticleSimulationScene::render() {
         OGL_CALL(glEnable(GL_DEPTH_TEST));
+        OGL_CALL(glEnable(GL_CULL_FACE));
         OGL_CALL(glCullFace(GL_BACK));
 
         const glm::mat4 viewProjection = mCamera->getPerspectiveTransform() * glm::inverse(mCamera->getTransform());
@@ -205,6 +208,8 @@ namespace pbf {
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
         mParticles->unbind();
 
+        // Cull front faces to only render box insides
+        OGL_CALL(glCullFace(GL_FRONT));
         mAmbLight->setUniformsInShader(mBoxShader, "ambLight.");
         mDirLight->setUniformsInShader(mBoxShader, "dirLight.");
         mPointLight->setUniformsInShader(mBoxShader, "pointLight.");
@@ -241,7 +246,7 @@ namespace pbf {
     }
 
     bool ParticleSimulationScene::resizeEvent(const glm::ivec2 &p) {
-        std::cout << "Rezize event" << std::endl;
+        mCamera->setScreenDimensions(p);
         return false;
     }
 }
