@@ -14,6 +14,8 @@ namespace clgl {
                const glm::quat &orientation = glm::quat(),
                float scale = 1.0f);
 
+
+
         void setScreenDimensions(glm::uvec2 screenDimensions);
 
         void setFieldOfViewY(float fovy);

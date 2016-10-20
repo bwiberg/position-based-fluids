@@ -3,6 +3,7 @@
 #include "util/paths.hpp"
 #include "util/OCL_CALL.hpp"
 #include "util/make_unique.hpp"
+#include "util/math_util.hpp"
 
 #include "geometry/Primitives.hpp"
 
@@ -85,16 +86,16 @@ namespace pbf {
         Label *ambLabel = new Label(win, "Ambient Intensity");
         Slider *ambIntensity = new Slider(win);
         ambIntensity->setCallback([&](float value){
-            std::cout << "Ambient Intensity: " << value << std::endl;
             mAmbLight->setIntensity(value);
         });
+        ambIntensity->setValue(mAmbLight->getIntensity());
 
         Label *dirLabel = new Label(win, "Directional Intensity");
         Slider *dirIntensity = new Slider(win);
         dirIntensity->setCallback([&](float value){
-            std::cout << "Directional Intensity: " << value << std::endl;
             mDirLight->setIntensity(value);
         });
+        dirIntensity->setValue(mDirLight->getIntensity());
     }
 
     void ParticleSimulationScene::reset() {
@@ -189,11 +190,10 @@ namespace pbf {
     bool
     ParticleSimulationScene::mouseMotionEvent(const glm::ivec2 &p, const glm::ivec2 &rel, int button, int modifiers) {
         if (mIsRotatingCamera) {
-            std::cout << "Rotate camera, x=" << rel.x << ", y=" << rel.y << std::endl;
-
             glm::vec3 eulerAngles = mCameraRotator->getEulerAngles();
             eulerAngles.x += 0.05f * rel.y;
             eulerAngles.y += 0.05f * rel.x;
+            eulerAngles.x = clamp(eulerAngles.x, - CL_M_PI_F / 2, CL_M_PI_F / 2);
             mCameraRotator->setEulerAngles(eulerAngles);
 
             return true;
