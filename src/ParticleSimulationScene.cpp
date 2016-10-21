@@ -15,6 +15,7 @@ namespace pbf {
 
     ParticleSimulationScene::ParticleSimulationScene(cl::Context &context, cl::Device &device, cl::CommandQueue &queue)
             : BaseScene(context, device, queue) {
+        mParticleRadius = 2.0f;
 
         /// Setup particle attributes as OpenGL buffers
         mPositionsGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
@@ -30,7 +31,7 @@ namespace pbf {
         mParticles->unbind();
 
         /// Setup shaders
-        mParticlesShader = make_unique<clgl::BaseShader>(
+        mParticlesShader = std::make_shared<clgl::BaseShader>(
                 std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("particles.vert")},
                                                         {GL_FRAGMENT_SHADER, SHADERPATH("particles.frag")}});
         mParticlesShader->compile();
@@ -116,6 +117,15 @@ namespace pbf {
         b->setCallback([&]() {
             this->loadFluidSetup(RESPATH("fluidSetups/cube-drop.txt"));
         });
+
+
+        /// Particles size
+        new Label(win, "Particle size");
+        Slider *particleSize = new Slider(win);
+        particleSize->setCallback([&](float value) {
+            mParticleRadius = 20 * value;
+        });
+        particleSize->setValue(mParticleRadius / 20);
 
 
         /// Ambient light parameters
@@ -224,7 +234,7 @@ namespace pbf {
         OCL_CALL(mClipToBoundsKernel->setArg(1, *mVelocitiesCL));
         OCL_CALL(mClipToBoundsKernel->setArg(2, sizeof(pbf::Bounds), mBoundsCL.get()));
 
-        mCamera->setPosition(glm::vec3(0.0f, 0.0f, 15.0f));
+        mCamera->setPosition(glm::vec3(0.0f, 0.0f, 10.0f));
         mDirLight->setLightDirection(glm::vec3(-1.0f));
     }
 
@@ -275,14 +285,23 @@ namespace pbf {
         OGL_CALL(glEnable(GL_DEPTH_TEST));
         OGL_CALL(glEnable(GL_CULL_FACE));
         OGL_CALL(glCullFace(GL_BACK));
+        //OGL_CALL(glDisable(GL_PROGRAM_POINT_SIZE));
 
-        const glm::mat4 viewProjection = mCamera->getPerspectiveTransform() * glm::inverse(mCamera->getTransform());
+        const glm::mat4 V = glm::inverse(mCamera->getTransform());
+        const glm::mat4 VP = mCamera->getPerspectiveTransform() * V;
 
         mParticlesShader->use();
-        mParticlesShader->uniform("Color", glm::vec4(1.0f, 1.0f, 1.0f, 1.0f));
-        mParticlesShader->uniform("MVP", viewProjection);
+        mParticlesShader->uniform("MV", V);
+        mParticlesShader->uniform("MVP", VP);
+        mParticlesShader->uniform("pointRadius", mParticleRadius);
+        mParticlesShader->uniform("pointScale",
+                                  mCamera->getScreenDimensions().y / tanf(mCamera->getFieldOfViewY() * CL_M_PI_F / 360));
+
+        mPointLight->setUniformsInShader(mParticlesShader, "pointLight");
+        mAmbLight->setUniformsInShader(mParticlesShader, "ambLight");
+
         mParticles->bind();
-        OGL_CALL(glPointSize(5.0f));
+        OGL_CALL(glPointSize(mParticleRadius));
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
         mParticles->unbind();
 
@@ -291,7 +310,7 @@ namespace pbf {
         mAmbLight->setUniformsInShader(mBoxShader, "ambLight.");
         mDirLight->setUniformsInShader(mBoxShader, "dirLight.");
         mPointLight->setUniformsInShader(mBoxShader, "pointLight.");
-        mBoundingBox->render(viewProjection);
+        mBoundingBox->render(VP);
     }
 
     //////////////////////

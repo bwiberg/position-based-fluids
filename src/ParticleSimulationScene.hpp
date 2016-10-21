@@ -58,7 +58,9 @@ namespace pbf {
 
         int mNumParticles;
 
-        std::unique_ptr<clgl::BaseShader> mParticlesShader;
+        float mParticleRadius;
+
+        std::shared_ptr<clgl::BaseShader> mParticlesShader;
         std::shared_ptr<clgl::BaseShader> mBoxShader;
 
         std::unique_ptr<bwgl::VertexBuffer> mPositionsGL;
