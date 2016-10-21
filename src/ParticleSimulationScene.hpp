@@ -35,6 +35,12 @@ namespace pbf {
         virtual bool resizeEvent(const glm::ivec2 &p) override;
 
     private:
+        void loadFluidSetup(const std::string &path);
+
+        void initializeParticleStates(std::vector<glm::vec4> && positions,
+                                      std::vector<glm::vec4> && velocities,
+                                      std::vector<float> && densities);
+
         std::shared_ptr<clgl::Camera> mCamera;
 
         std::shared_ptr<clgl::SceneObject> mCameraRotator;

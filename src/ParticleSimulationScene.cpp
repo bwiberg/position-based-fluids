@@ -106,6 +106,18 @@ namespace pbf {
         win->setLayout(new GroupLayout());
 
 
+        /// Fluid scenes
+        new Label(win, "Fluid Setups");
+        Button *b = new Button(win, "Dam break");
+        b->setCallback([&]() {
+            this->loadFluidSetup(RESPATH("fluidSetups/dam-break.txt"));
+        });
+        b = new Button(win, "Cube drop");
+        b->setCallback([&]() {
+            this->loadFluidSetup(RESPATH("fluidSetups/cube-drop.txt"));
+        });
+
+
         /// Ambient light parameters
 
         new Label(win, "Ambient Intensity", "sans", 10);
@@ -155,45 +167,46 @@ namespace pbf {
         spotSlider->setValue(mPointLight->getAttenuation().b / 10);
     }
 
-    void ParticleSimulationScene::reset() {
-        const unsigned int MAX_PARTICLES = 1000;
-        mNumParticles = 1000;
-        mDeltaTime = 0.005f;
+    void ParticleSimulationScene::loadFluidSetup(const std::string &path) {
+        std::ifstream ifs(path.c_str());
 
-        glm::vec4 positions[MAX_PARTICLES] = {glm::vec4(0)};
+        const unsigned int MAX_PARTICLES = 10000;
+        std::vector<glm::vec4> positions(MAX_PARTICLES);
+        std::vector<glm::vec4> velocities(MAX_PARTICLES);
+        std::vector<float> densities(MAX_PARTICLES);
 
-        std::vector<float> polarAngles = util::generate_uniform_floats(1000, -CL_M_PI/2, CL_M_PI/2);
-        std::vector<float> azimuthalAngles = util::generate_uniform_floats(1000, 0.0f, 2 * CL_M_PI);
+        if (ifs.is_open() && !ifs.eof()) {
+            ifs >> mNumParticles;
 
-        glm::vec4 velocities[MAX_PARTICLES];
-        {
-            glm::vec4 velocity(0);
-            float polar, azimuthal;
-
-            for (int i = 0; i < MAX_PARTICLES; ++i) {
-                polar = polarAngles[i];
-                azimuthal = azimuthalAngles[i];
-
-                velocity.x = sinf(azimuthal) * cosf(polar);
-                velocity.y = cosf(azimuthal);
-                velocity.z = sinf(azimuthal) * sinf(polar);
-
-                velocities[i] = velocity;
+            while (!ifs.eof()) {
+                for (unsigned int id = 0; id < mNumParticles; ++id) {
+                    ifs >> positions[id].x;
+                    ifs >> positions[id].y;
+                    ifs >> positions[id].z;
+                }
             }
         }
 
-        float densities[MAX_PARTICLES] = {0};
+        ifs.close();
+
+        initializeParticleStates(std::move(positions), std::move(velocities), std::move(densities));
+    }
+
+    void ParticleSimulationScene::initializeParticleStates(std::vector<glm::vec4> &&positions,
+                                                           std::vector<glm::vec4> &&velocities,
+                                                           std::vector<float> &&densities) {
+        const unsigned int MAX_PARTICLES = positions.size();
 
         mPositionsGL->bind();
-        mPositionsGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, positions);
+        mPositionsGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
         mPositionsGL->unbind();
 
         mVelocitiesGL->bind();
-        mVelocitiesGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, velocities);
+        mVelocitiesGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
         mVelocitiesGL->unbind();
 
         mDensitiesGL->bind();
-        mDensitiesGL->bufferData(sizeof(float) * MAX_PARTICLES, densities);
+        mDensitiesGL->bufferData(sizeof(float) * MAX_PARTICLES, &densities[0]);
         mDensitiesGL->unbind();
 
         mPositionsCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL->ID());
@@ -213,6 +226,38 @@ namespace pbf {
 
         mCamera->setPosition(glm::vec3(0.0f, 0.0f, 15.0f));
         mDirLight->setLightDirection(glm::vec3(-1.0f));
+    }
+
+    void ParticleSimulationScene::reset() {
+        const unsigned int MAX_PARTICLES = 1000;
+        mNumParticles = 1000;
+        mDeltaTime = 0.005f;
+
+        std::vector<glm::vec4> positions(MAX_PARTICLES);
+
+        std::vector<float> polarAngles = util::generate_uniform_floats(1000, -CL_M_PI/2, CL_M_PI/2);
+        std::vector<float> azimuthalAngles = util::generate_uniform_floats(1000, 0.0f, 2 * CL_M_PI);
+
+        std::vector<glm::vec4> velocities(MAX_PARTICLES);
+        {
+            glm::vec4 velocity(0);
+            float polar, azimuthal;
+
+            for (int i = 0; i < MAX_PARTICLES; ++i) {
+                polar = polarAngles[i];
+                azimuthal = azimuthalAngles[i];
+
+                velocity.x = sinf(azimuthal) * cosf(polar);
+                velocity.y = cosf(azimuthal);
+                velocity.z = sinf(azimuthal) * sinf(polar);
+
+                velocities[i] = velocity;
+            }
+        }
+
+        std::vector<float> densities(MAX_PARTICLES);
+
+        initializeParticleStates(std::move(positions), std::move(velocities), std::move(densities));
     }
 
     void ParticleSimulationScene::update() {
