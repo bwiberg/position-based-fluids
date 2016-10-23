@@ -55,19 +55,21 @@ __kernel void compute_bin_start_ID(__global const uint  *binCounts,
     binStartID[id] = count;
 }
 
-__kernel void reindex_particles(__global const uint     *particleBinID,     // 0
-                                __global const uint     *particleInBinID,   // 1
-                                __global const uint     *binStartID,        // 2
-                                __global const float3   *positionsOld,      // 3
-                                __global const float3   *velocitiesOld,     // 4
-                                __global float3         *positionsNew,      // 5
-                                __global float3         *velocitiesNew) {   // 6
+__kernel void reindex_particles(__global const uint     *particleBinIDsOld,     // 0
+                                __global const uint     *particleInBinID,       // 1
+                                __global const uint     *binStartID,            // 2
+                                __global const float3   *positionsOld,          // 3
+                                __global const float3   *velocitiesOld,         // 4
+                                __global float3         *positionsNew,          // 5
+                                __global float3         *velocitiesNew,         // 6
+                                __global uint           *particleBinIDsNew) {   // 7
 
     const uint id = get_global_id(0);
 
-    const uint idNew = binStartID[particleBinID[id]] + particleInBinID[id];
+    const uint idNew = binStartID[particleBinIDsOld[id]] + particleInBinID[id];
 
     // Copy particle state to new position
     positionsNew[idNew] = positionsOld[id];
     velocitiesNew[idNew] = velocitiesOld[id];
+    particleBinIDsNew[idNew] = particleBinIDsOld[id];
 }

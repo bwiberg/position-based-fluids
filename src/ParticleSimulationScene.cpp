@@ -69,7 +69,6 @@ namespace pbf {
         mVelocitiesGL[0] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
         mVelocitiesGL[1] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
         mDensitiesGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mParticleBinIDGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
 
 
         /// Create OpenGL vertex array, representing each particle
@@ -78,8 +77,6 @@ namespace pbf {
         mParticles[0]->addVertexAttribute(*mPositionsGL[0], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
         mParticles[0]->addVertexAttribute(*mVelocitiesGL[0], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
         mParticles[0]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
-            // todo: remove this
-            mParticles[0]->addVertexAttribute(*mParticleBinIDGL, 1, GL_UNSIGNED_INT, GL_FALSE, 0);
         mParticles[0]->unbind();
 
         mParticles[1] = make_unique<VertexArray>();
@@ -87,8 +84,6 @@ namespace pbf {
         mParticles[1]->addVertexAttribute(*mPositionsGL[1], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
         mParticles[1]->addVertexAttribute(*mVelocitiesGL[1], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
         mParticles[1]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
-            // todo: remove this
-            mParticles[1]->addVertexAttribute(*mParticleBinIDGL, 1, GL_UNSIGNED_INT, GL_FALSE, 0);
         mParticles[1]->unbind();
 
         /// Setup counting sort kernels
@@ -274,10 +269,6 @@ namespace pbf {
         mDensitiesGL->bufferData(sizeof(float) * MAX_PARTICLES, &densities[0]);
         mDensitiesGL->unbind();
 
-        mParticleBinIDGL->bind();
-        mParticleBinIDGL->bufferData(sizeof(GLuint) * MAX_PARTICLES, NULL);
-        mParticleBinIDGL->unbind();
-
         /// Create OpenCL references to OpenGL buffers
         OCL_ERROR;
         OCL_CHECK(mPositionsCL[0] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL[0]->ID(), CL_ERROR));
@@ -293,21 +284,18 @@ namespace pbf {
         OCL_CHECK(mDensitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mDensitiesGL->ID(), CL_ERROR));
         mMemObjects.push_back(*mDensitiesCL);
 
-        OCL_CHECK(mParticleBinIDCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mParticleBinIDGL->ID(), CL_ERROR));
-        mMemObjects.push_back(*mParticleBinIDCL);
-
         /// Setup CL-only buffers (for the grid)
         OCL_CHECK(mBinCountCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * mGridCL->binCount, (void*)0, CL_ERROR));
         OCL_CHECK(mBinStartIDCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * mGridCL->binCount, (void*)0, CL_ERROR));
         OCL_CHECK(mParticleInBinPosCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleBinIDCL[0] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleBinIDCL[1] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
 
         /// Set these arguments of the kernel since they don't flip their buffers
-        OCL_CALL(mSortInsertParticles->setArg(1, *mParticleBinIDCL));
         OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
         OCL_CALL(mSortInsertParticles->setArg(3, *mBinCountCL));
         OCL_CALL(mSortComputeBinStartID->setArg(0, *mBinCountCL));
         OCL_CALL(mSortComputeBinStartID->setArg(1, *mBinStartIDCL));
-        OCL_CALL(mSortReindexParticles->setArg(0, *mParticleBinIDCL));
         OCL_CALL(mSortReindexParticles->setArg(1, *mParticleInBinPosCL));
         OCL_CALL(mSortReindexParticles->setArg(2, *mBinStartIDCL));
 
@@ -404,7 +392,7 @@ namespace pbf {
         mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount);
 
         OCL_CALL(mSortInsertParticles->setArg(0, *mPositionsCL[previousBufferID]));
-        // OCL_CALL(mSortInsertParticles->setArg(1, *mParticleBinIDCL));
+        OCL_CALL(mSortInsertParticles->setArg(1, *mParticleBinIDCL[previousBufferID]));
         // OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
         // OCL_CALL(mSortInsertParticles->setArg(3, *mBinCountCL));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortInsertParticles, cl::NullRange,
@@ -415,13 +403,14 @@ namespace pbf {
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortComputeBinStartID, cl::NullRange,
                                              cl::NDRange(mGridCL->binCount, 1), cl::NullRange));
 
-        // OCL_CALL(mSortReindexParticles->setArg(0, *mParticleBinIDCL));
+        OCL_CALL(mSortReindexParticles->setArg(0, *mParticleBinIDCL[previousBufferID]));
         // OCL_CALL(mSortReindexParticles->setArg(1, *mParticleInBinPosCL));
         // OCL_CALL(mSortReindexParticles->setArg(2, *mBinStartIDCL));
         OCL_CALL(mSortReindexParticles->setArg(3, *mPositionsCL[previousBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(4, *mVelocitiesCL[previousBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(5, *mPositionsCL[mCurrentBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(6, *mVelocitiesCL[mCurrentBufferID]));
+        OCL_CALL(mSortReindexParticles->setArg(7, *mParticleBinIDCL[mCurrentBufferID]));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortReindexParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
@@ -433,6 +422,9 @@ namespace pbf {
             ////////////////////
             /// Calculate λi ///
             ////////////////////
+
+            /// Calculate densities
+
 
             ////////////////////////////////////////////////
             /// calculate ∆pi                            ///

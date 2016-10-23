@@ -73,14 +73,13 @@ namespace pbf {
         std::unique_ptr<bwgl::VertexBuffer> mPositionsGL[2];
         std::unique_ptr<bwgl::VertexBuffer> mVelocitiesGL[2];
         std::unique_ptr<bwgl::VertexBuffer> mDensitiesGL;
-        std::unique_ptr<bwgl::VertexBuffer> mParticleBinIDGL;
         std::unique_ptr<bwgl::VertexArray> mParticles[2];
 
         /// OpenCL particle buffers
         std::unique_ptr<cl::BufferGL> mPositionsCL[2];
         std::unique_ptr<cl::BufferGL> mVelocitiesCL[2];
         std::unique_ptr<cl::BufferGL> mDensitiesCL;
-        std::unique_ptr<cl::BufferGL> mParticleBinIDCL;
+        std::unique_ptr<cl::Buffer> mParticleBinIDCL[2];
 
         /// OpenCL stuff
         std::unique_ptr<pbf::Bounds> mBoundsCL;
@@ -97,11 +96,14 @@ namespace pbf {
         std::unique_ptr<cl::Program> mCountingSortProgram;
 
         std::unique_ptr<cl::Kernel> mTimestepKernel;
-        std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
 
         std::unique_ptr<cl::Kernel> mSortInsertParticles;
         std::unique_ptr<cl::Kernel> mSortComputeBinStartID;
         std::unique_ptr<cl::Kernel> mSortReindexParticles;
+
+        std::unique_ptr<cl::Kernel> mCalcDensities;
+
+        std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
 
 
     };
