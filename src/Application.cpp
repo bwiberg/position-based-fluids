@@ -237,7 +237,7 @@ namespace clgl {
         mScreen->drawAll();
         mScreen->setVisible(true);
 
-        nanogui::mainloop();
+        nanogui::mainloop(1);
 
         return 0;
     }
