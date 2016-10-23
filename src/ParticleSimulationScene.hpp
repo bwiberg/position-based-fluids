@@ -12,6 +12,7 @@
 #include "rendering/light/PointLight.hpp"
 
 #include "simulation/Bounds.hpp"
+#include "simulation/Grid.hpp"
 
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
@@ -46,7 +47,6 @@ namespace pbf {
         std::shared_ptr<clgl::SceneObject> mCameraRotator;
 
         std::shared_ptr<clgl::MeshObject> mBoundingBox;
-        std::unique_ptr<pbf::Bounds> mBoundsCL;
 
         std::shared_ptr<clgl::DirectionalLight> mDirLight;
         std::shared_ptr<clgl::AmbientLight> mAmbLight;
@@ -56,29 +56,53 @@ namespace pbf {
 
         float mDeltaTime;
 
-        int mNumParticles;
+        unsigned int mNumParticles;
 
         float mParticleRadius;
+
+        unsigned int mNumSolverIterations;
 
         std::shared_ptr<clgl::BaseShader> mParticlesShader;
         std::shared_ptr<clgl::BaseShader> mBoxShader;
 
-        std::unique_ptr<bwgl::VertexBuffer> mPositionsGL;
-        std::unique_ptr<bwgl::VertexBuffer> mVelocitiesGL;
+        /// Keeps track of which of the two buffers is in use this frame
+        unsigned int mCurrentBufferID;
+
+        /// OpenGL particle buffers
+        /// Double state buffers (pos and vel) are needed for the counting sort algorithm
+        std::unique_ptr<bwgl::VertexBuffer> mPositionsGL[2];
+        std::unique_ptr<bwgl::VertexBuffer> mVelocitiesGL[2];
         std::unique_ptr<bwgl::VertexBuffer> mDensitiesGL;
+        std::unique_ptr<bwgl::VertexBuffer> mParticleBinIDGL;
+        std::unique_ptr<bwgl::VertexArray> mParticles[2];
 
-        std::unique_ptr<bwgl::VertexArray> mParticles;
-
-        std::unique_ptr<cl::BufferGL> mPositionsCL;
-        std::unique_ptr<cl::BufferGL> mVelocitiesCL;
+        /// OpenCL particle buffers
+        std::unique_ptr<cl::BufferGL> mPositionsCL[2];
+        std::unique_ptr<cl::BufferGL> mVelocitiesCL[2];
         std::unique_ptr<cl::BufferGL> mDensitiesCL;
+        std::unique_ptr<cl::BufferGL> mParticleBinIDCL;
+
+        /// OpenCL stuff
+        std::unique_ptr<pbf::Bounds> mBoundsCL;
+        std::unique_ptr<pbf::Grid> mGridCL;
+
+        std::unique_ptr<cl::Buffer> mBinCountCL; // CxCxC-sized uint buffer, containing particle count per cell
+        std::unique_ptr<cl::Buffer> mBinStartIDCL;
+        std::unique_ptr<cl::Buffer> mParticleInBinPosCL;
 
         std::vector<cl::Memory> mMemObjects;
 
         std::unique_ptr<cl::Program> mTimestepProgram;
-        std::unique_ptr<cl::Kernel> mTimestepKernel;
-
         std::unique_ptr<cl::Program> mClipToBoundsProgram;
+        std::unique_ptr<cl::Program> mCountingSortProgram;
+
+        std::unique_ptr<cl::Kernel> mTimestepKernel;
         std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
+
+        std::unique_ptr<cl::Kernel> mSortInsertParticles;
+        std::unique_ptr<cl::Kernel> mSortComputeBinStartID;
+        std::unique_ptr<cl::Kernel> mSortReindexParticles;
+
+
     };
 }

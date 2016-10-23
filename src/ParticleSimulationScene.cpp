@@ -5,6 +5,7 @@
 #include "util/OCL_CALL.hpp"
 #include "util/make_unique.hpp"
 #include "util/math_util.hpp"
+#include "util/cl_util.hpp"
 
 #include "geometry/Primitives.hpp"
 
@@ -17,20 +18,7 @@ namespace pbf {
             : BaseScene(context, device, queue) {
         mParticleRadius = 2.0f;
 
-        /// Setup particle attributes as OpenGL buffers
-        mPositionsGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mVelocitiesGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mDensitiesGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-
-        /// Create OpenGL vertex array, representing each particle
-        mParticles = make_unique<VertexArray>();
-        mParticles->bind();
-        mParticles->addVertexAttribute(*mPositionsGL, 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
-        mParticles->addVertexAttribute(*mVelocitiesGL, 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
-        mParticles->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
-        mParticles->unbind();
-
-        /// Setup shaders
+        /// Create shaders
         mParticlesShader = std::make_shared<clgl::BaseShader>(
                 std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("particles.vert")},
                                                         {GL_FRAGMENT_SHADER, SHADERPATH("particles.frag")}});
@@ -41,39 +29,12 @@ namespace pbf {
                                                         {GL_FRAGMENT_SHADER, SHADERPATH("box.frag")}});
         mBoxShader->compile();
 
-        /// Setup timestep kernel
-        std::string kernelSource = "";
-        if (TryReadFromFile(KERNELPATH("timestep.cl"), kernelSource)) {
-            cl_int error;
-            mTimestepProgram = make_unique<Program>(mContext, kernelSource, true, &error);
-            if (error == CL_BUILD_PROGRAM_FAILURE) {
-                std::cerr << "Error building: "
-                          << mTimestepProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
-                          << std::endl;
-            }
-
-            mTimestepKernel = make_unique<Kernel>(*mTimestepProgram, "timestep", &error);
-        }
-
-        /// Setup "clip to bounds"-kernel
-        if (TryReadFromFile(KERNELPATH("clip_to_bounds.cl"), kernelSource)) {
-            cl_int error;
-            mClipToBoundsProgram = make_unique<Program>(mContext, kernelSource, true, &error);
-            if (error == CL_BUILD_PROGRAM_FAILURE) {
-                std::cerr << "Error building: "
-                          << mClipToBoundsProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
-                          << std::endl;
-            }
-
-            mClipToBoundsKernel = make_unique<Kernel>(*mClipToBoundsProgram, "clip_to_bounds", &error);
-        }
-
-        std::cout << "Awesome" << std::endl;
 
         /// Create camera
         mCameraRotator = std::make_shared<clgl::SceneObject>();
         mCamera = std::make_shared<clgl::Camera>(glm::uvec2(100, 100), 50);
         clgl::SceneObject::attach(mCameraRotator, mCamera);
+
 
         /// Create geometry
         auto boxMesh = clgl::Primitives::createBox(glm::vec3(1.0f, 1.0f, 1.0f));
@@ -87,12 +48,98 @@ namespace pbf {
         mBoundsCL->halfDimensions = {1.0f, 1.0f, 1.0f, 0.0f};
         mBoundsCL->dimensions = {2.0f, 2.0f, 2.0f, 0.0f};
 
+        mGridCL = make_unique<pbf::Grid>();
+        mGridCL->halfDimensions = {1.0f, 1.0f, 1.0f, 0.0f};
+        mGridCL->binSize = 0.5f;
+        mGridCL->binCount3D = {4, 4, 4, 0};
+        mGridCL->binCount = 4 * 4 * 4;
+
+
         /// Create lights
         mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.3f, 0.3f, 1.0f), 0.2f);
         mDirLight = std::make_shared<clgl::DirectionalLight>(glm::vec3(1.0f, 1.0f, 1.0f), 0.1f);
         mPointLight = std::make_shared<clgl::PointLight>(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
         mPointLight->setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
         mPointLight->setAttenuation(clgl::Attenuation(0.1f, 0.1f));
+
+
+        /// Setup particle attributes as OpenGL buffers
+        mPositionsGL[0] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mPositionsGL[1] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mVelocitiesGL[0] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mVelocitiesGL[1] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mDensitiesGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mParticleBinIDGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+
+
+        /// Create OpenGL vertex array, representing each particle
+        mParticles[0] = make_unique<VertexArray>();
+        mParticles[0]->bind();
+        mParticles[0]->addVertexAttribute(*mPositionsGL[0], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
+        mParticles[0]->addVertexAttribute(*mVelocitiesGL[0], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
+        mParticles[0]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
+            // todo: remove this
+            mParticles[0]->addVertexAttribute(*mParticleBinIDGL, 1, GL_UNSIGNED_INT, GL_FALSE, 0);
+        mParticles[0]->unbind();
+
+        mParticles[1] = make_unique<VertexArray>();
+        mParticles[1]->bind();
+        mParticles[1]->addVertexAttribute(*mPositionsGL[1], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
+        mParticles[1]->addVertexAttribute(*mVelocitiesGL[1], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
+        mParticles[1]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
+            // todo: remove this
+            mParticles[1]->addVertexAttribute(*mParticleBinIDGL, 1, GL_UNSIGNED_INT, GL_FALSE, 0);
+        mParticles[1]->unbind();
+
+        /// Setup counting sort kernels
+        std::string kernelSource = "";
+        if (TryReadFromFile(KERNELPATH("counting_sort.cl"), kernelSource)) {
+            OCL_ERROR;
+            std::stringstream ss;
+            std::string defines = pbf::getDefinesCL(*mGridCL);
+            ss << std::endl << defines << std::endl << kernelSource;
+            kernelSource = ss.str();
+            OCL_CHECK(mCountingSortProgram = make_unique<Program>(mContext, kernelSource, true, CL_ERROR));
+            if (*CL_ERROR == CL_BUILD_PROGRAM_FAILURE) {
+                std::cerr << "Error building: "
+                          << mCountingSortProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
+                          << std::endl;
+            }
+
+            OCL_CHECK(mSortInsertParticles = make_unique<Kernel>(*mCountingSortProgram, "insert_particles", CL_ERROR));
+            OCL_CHECK(mSortComputeBinStartID = make_unique<Kernel>(*mCountingSortProgram, "compute_bin_start_ID", CL_ERROR));
+            OCL_CHECK(mSortReindexParticles = make_unique<Kernel>(*mCountingSortProgram, "reindex_particles", CL_ERROR));
+        }
+
+        /// Setup timestep kernel
+        if (TryReadFromFile(KERNELPATH("timestep.cl"), kernelSource)) {
+            cl_int error;
+            mTimestepProgram = make_unique<Program>(mContext, kernelSource, true, &error);
+            if (error == CL_BUILD_PROGRAM_FAILURE) {
+                std::cerr << "Error building: "
+                          << mTimestepProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
+                          << std::endl;
+            }
+
+            OCL_ERROR;
+            OCL_CHECK(mTimestepKernel = make_unique<Kernel>(*mTimestepProgram, "timestep", CL_ERROR));
+        }
+
+        /// Setup "clip to bounds"-kernel
+        if (TryReadFromFile(KERNELPATH("clip_to_bounds.cl"), kernelSource)) {
+            cl_int error;
+            mClipToBoundsProgram = make_unique<Program>(mContext, kernelSource, true, &error);
+            if (error == CL_BUILD_PROGRAM_FAILURE) {
+                std::cerr << "Error building: "
+                          << mClipToBoundsProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
+                          << std::endl;
+            }
+
+            OCL_ERROR;
+            OCL_CHECK(mClipToBoundsKernel = make_unique<Kernel>(*mClipToBoundsProgram, "clip_to_bounds", CL_ERROR));
+        }
+
+        OCL_CALL(mClipToBoundsKernel->setArg(2, sizeof(pbf::Bounds), mBoundsCL.get()));
     }
 
     void ParticleSimulationScene::addGUI(nanogui::Screen *screen) {
@@ -207,32 +254,62 @@ namespace pbf {
                                                            std::vector<float> &&densities) {
         const unsigned int MAX_PARTICLES = positions.size();
 
-        mPositionsGL->bind();
-        mPositionsGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
-        mPositionsGL->unbind();
+        mPositionsGL[0]->bind();
+        mPositionsGL[0]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPositionsGL[0]->unbind();
 
-        mVelocitiesGL->bind();
-        mVelocitiesGL->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
-        mVelocitiesGL->unbind();
+        mVelocitiesGL[0]->bind();
+        mVelocitiesGL[0]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
+        mVelocitiesGL[0]->unbind();
+
+        mPositionsGL[1]->bind();
+        mPositionsGL[1]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPositionsGL[1]->unbind();
+
+        mVelocitiesGL[1]->bind();
+        mVelocitiesGL[1]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
+        mVelocitiesGL[1]->unbind();
 
         mDensitiesGL->bind();
         mDensitiesGL->bufferData(sizeof(float) * MAX_PARTICLES, &densities[0]);
         mDensitiesGL->unbind();
 
-        mPositionsCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL->ID());
-        mMemObjects.push_back(*mPositionsCL);
-        mVelocitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL->ID());
-        mMemObjects.push_back(*mVelocitiesCL);
-        mDensitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mDensitiesGL->ID());
+        mParticleBinIDGL->bind();
+        mParticleBinIDGL->bufferData(sizeof(GLuint) * MAX_PARTICLES, NULL);
+        mParticleBinIDGL->unbind();
+
+        /// Create OpenCL references to OpenGL buffers
+        OCL_ERROR;
+        OCL_CHECK(mPositionsCL[0] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL[0]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mPositionsCL[0]);
+        OCL_CHECK(mPositionsCL[1] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL[1]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mPositionsCL[1]);
+
+        OCL_CHECK(mVelocitiesCL[0] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL[0]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mVelocitiesCL[0]);
+        OCL_CHECK(mVelocitiesCL[1] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL[1]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mVelocitiesCL[1]);
+
+        OCL_CHECK(mDensitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mDensitiesGL->ID(), CL_ERROR));
         mMemObjects.push_back(*mDensitiesCL);
 
-        OCL_CALL(mTimestepKernel->setArg(0, *mPositionsCL));
-        OCL_CALL(mTimestepKernel->setArg(1, *mVelocitiesCL));
-        OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
+        OCL_CHECK(mParticleBinIDCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mParticleBinIDGL->ID(), CL_ERROR));
+        mMemObjects.push_back(*mParticleBinIDCL);
 
-        OCL_CALL(mClipToBoundsKernel->setArg(0, *mPositionsCL));
-        OCL_CALL(mClipToBoundsKernel->setArg(1, *mVelocitiesCL));
-        OCL_CALL(mClipToBoundsKernel->setArg(2, sizeof(pbf::Bounds), mBoundsCL.get()));
+        /// Setup CL-only buffers (for the grid)
+        OCL_CHECK(mBinCountCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * mGridCL->binCount, (void*)0, CL_ERROR));
+        OCL_CHECK(mBinStartIDCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * mGridCL->binCount, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleInBinPosCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
+
+        /// Set these arguments of the kernel since they don't flip their buffers
+        OCL_CALL(mSortInsertParticles->setArg(1, *mParticleBinIDCL));
+        OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
+        OCL_CALL(mSortInsertParticles->setArg(3, *mBinCountCL));
+        OCL_CALL(mSortComputeBinStartID->setArg(0, *mBinCountCL));
+        OCL_CALL(mSortComputeBinStartID->setArg(1, *mBinStartIDCL));
+        OCL_CALL(mSortReindexParticles->setArg(0, *mParticleBinIDCL));
+        OCL_CALL(mSortReindexParticles->setArg(1, *mParticleInBinPosCL));
+        OCL_CALL(mSortReindexParticles->setArg(2, *mBinStartIDCL));
 
         mCamera->setPosition(glm::vec3(0.0f, 0.0f, 10.0f));
         mDirLight->setLightDirection(glm::vec3(-1.0f));
@@ -241,7 +318,9 @@ namespace pbf {
     void ParticleSimulationScene::reset() {
         const unsigned int MAX_PARTICLES = 1000;
         mNumParticles = 1000;
-        mDeltaTime = 0.005f;
+        mDeltaTime = 1.f / 60;
+        mCurrentBufferID = 0;
+        mNumSolverIterations = 1;
 
         std::vector<glm::vec4> positions(MAX_PARTICLES);
 
@@ -270,13 +349,112 @@ namespace pbf {
         initializeParticleStates(std::move(positions), std::move(velocities), std::move(densities));
     }
 
+    // for all particles i do
+    //      apply external forces vi ⇐ vi +∆tfext(xi)
+    //      predict position x∗i ⇐ xi +∆tvi
+    // end for
+    //
+    // for all particles i do
+    //      find neighboring particles Ni(x∗i)
+    // end for
+    //
+    // while iter < solverIterations do
+    //      for all particles i do
+    //          calculate λi
+    //      end for
+    //
+    //      for all particles i do
+    //          calculate ∆pi
+    //          perform collision detection and response
+    //      end for
+    //
+    //      for all particles i do
+    //          update position x∗i ⇐ x∗i + ∆pi
+    //      end for
+    // end while
+    //
+    // for all particles i do
+    //      update velocity vi ⇐ (1/∆t)(x∗i − xi)
+    //      apply vorticity confinement and XSPH viscosity
+    //      update position xi ⇐ x∗i
+    // end for
     void ParticleSimulationScene::update() {
+        //unsigned int previousBufferID = mCurrentBufferID;
+        unsigned int previousBufferID = 0;
+        mCurrentBufferID = 1 - mCurrentBufferID;
+
         cl::Event event;
         OCL_CALL(mQueue.enqueueAcquireGLObjects(&mMemObjects));
+
+        ///////////////////////////////////////////////////
+        /// Apply external forces and predict positions ///
+        ///////////////////////////////////////////////////
+
+        OCL_CALL(mTimestepKernel->setArg(0, *mPositionsCL[previousBufferID]));
+        OCL_CALL(mTimestepKernel->setArg(1, *mVelocitiesCL[previousBufferID]));
+        OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mTimestepKernel, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
-        OCL_CALL(mQueue.enqueueNDRangeKernel(*mClipToBoundsKernel, cl::NullRange,
+
+        /////////////////////
+        /// Counting sort ///
+        /////////////////////
+
+        /// Reset bin counts to zero, d'uh
+        mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount);
+
+        OCL_CALL(mSortInsertParticles->setArg(0, *mPositionsCL[previousBufferID]));
+        // OCL_CALL(mSortInsertParticles->setArg(1, *mParticleBinIDCL));
+        // OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
+        // OCL_CALL(mSortInsertParticles->setArg(3, *mBinCountCL));
+        OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortInsertParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
+
+        // OCL_CALL(mSortComputeBinStartID->setArg(0, *mBinCountCL));
+        // OCL_CALL(mSortComputeBinStartID->setArg(1, *mBinStartIDCL));
+        OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortComputeBinStartID, cl::NullRange,
+                                             cl::NDRange(mGridCL->binCount, 1), cl::NullRange));
+
+        // OCL_CALL(mSortReindexParticles->setArg(0, *mParticleBinIDCL));
+        // OCL_CALL(mSortReindexParticles->setArg(1, *mParticleInBinPosCL));
+        // OCL_CALL(mSortReindexParticles->setArg(2, *mBinStartIDCL));
+        OCL_CALL(mSortReindexParticles->setArg(3, *mPositionsCL[previousBufferID]));
+        OCL_CALL(mSortReindexParticles->setArg(4, *mVelocitiesCL[previousBufferID]));
+        OCL_CALL(mSortReindexParticles->setArg(5, *mPositionsCL[mCurrentBufferID]));
+        OCL_CALL(mSortReindexParticles->setArg(6, *mVelocitiesCL[mCurrentBufferID]));
+        OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortReindexParticles, cl::NullRange,
+                                             cl::NDRange(mNumParticles, 1), cl::NullRange));
+
+        //////////////////////////////////
+        /// Apply position corrections ///
+        //////////////////////////////////
+
+        for (unsigned int i = 0; i < mNumSolverIterations; ++i) {
+            ////////////////////
+            /// Calculate λi ///
+            ////////////////////
+
+            ////////////////////////////////////////////////
+            /// calculate ∆pi                            ///
+            /// perform collision detection and response ///
+            ////////////////////////////////////////////////
+            OCL_CALL(mClipToBoundsKernel->setArg(0, *mPositionsCL[mCurrentBufferID]));
+            OCL_CALL(mClipToBoundsKernel->setArg(1, *mVelocitiesCL[mCurrentBufferID]));
+            //OCL_CALL(mClipToBoundsKernel->setArg(2, sizeof(pbf::Bounds), mBoundsCL.get()));
+            OCL_CALL(mQueue.enqueueNDRangeKernel(*mClipToBoundsKernel, cl::NullRange,
+                                                 cl::NDRange(mNumParticles, 1), cl::NullRange));
+
+            ////////////////////////////////////////
+            /// update position x∗i ⇐ x∗i + ∆pi ///
+            ////////////////////////////////////////
+        }
+
+        //////////////////////////////////////////////////////
+        /// update velocity vi ⇐ (1/∆t)(x∗i − xi)         ///
+        /// apply vorticity confinement and XSPH viscosity ///
+        /// update position xi ⇐ x∗i                      ///
+        //////////////////////////////////////////////////////
+
         OCL_CALL(mQueue.enqueueReleaseGLObjects(&mMemObjects, NULL, &event));
         OCL_CALL(event.wait());
     }
@@ -300,10 +478,12 @@ namespace pbf {
         mPointLight->setUniformsInShader(mParticlesShader, "pointLight");
         mAmbLight->setUniformsInShader(mParticlesShader, "ambLight");
 
-        mParticles->bind();
+        //mParticles[mCurrentBufferID]->bind();
+        mParticles[0]->bind();
         OGL_CALL(glPointSize(mParticleRadius));
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
-        mParticles->unbind();
+        //mParticles[mCurrentBufferID]->unbind();
+        mParticles[0]->unbind();
 
         // Cull front faces to only render box insides
         OGL_CALL(glCullFace(GL_FRONT));
