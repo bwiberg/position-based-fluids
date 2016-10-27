@@ -81,6 +81,7 @@ namespace pbf {
         std::unique_ptr<cl::BufferGL> mVelocitiesCL[2];
         std::unique_ptr<cl::BufferGL> mDensitiesCL;
         std::unique_ptr<cl::Buffer> mParticleBinIDCL[2];
+        std::unique_ptr<cl::Buffer> mParticleLambdasCL;
 
         /// OpenCL stuff
         std::unique_ptr<pbf::Bounds> mBoundsCL;
@@ -105,6 +106,7 @@ namespace pbf {
         std::unique_ptr<cl::Kernel> mSortReindexParticles;
 
         std::unique_ptr<cl::Kernel> mCalcDensities;
+        std::unique_ptr<cl::Kernel> mCalcLambdas;
 
         std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
 

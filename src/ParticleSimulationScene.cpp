@@ -128,6 +128,7 @@ namespace pbf {
             }
 
             OCL_CHECK(mCalcDensities = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_densities", CL_ERROR));
+            OCL_CHECK(mCalcLambdas = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_lambdas", CL_ERROR));
         }
 
         /// Setup timestep kernel
@@ -318,6 +319,7 @@ namespace pbf {
         OCL_CHECK(mParticleInBinPosCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
         OCL_CHECK(mParticleBinIDCL[0] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
         OCL_CHECK(mParticleBinIDCL[1] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleLambdasCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_float) * MAX_PARTICLES, (void*)0, CL_ERROR));
 
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinStartIDCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
@@ -537,6 +539,17 @@ namespace pbf {
             OCL_CALL(mCalcDensities->setArg(4, *mBinCountCL));
             OCL_CALL(mCalcDensities->setArg(5, *mDensitiesCL));
             OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcDensities, cl::NullRange,
+                                                 cl::NDRange(mNumParticles, 1), cl::NullRange));
+
+            /// Calculate λi
+            OCL_CALL(mCalcLambdas->setArg(0, sizeof(pbf::Fluid), mFluidCL.get()));
+            OCL_CALL(mCalcLambdas->setArg(1, *mPositionsCL[mCurrentBufferID]));
+            OCL_CALL(mCalcLambdas->setArg(2, *mParticleBinIDCL[mCurrentBufferID]));
+            OCL_CALL(mCalcLambdas->setArg(3, *mBinStartIDCL));
+            OCL_CALL(mCalcLambdas->setArg(4, *mBinCountCL));
+            OCL_CALL(mCalcLambdas->setArg(5, *mDensitiesCL));
+            OCL_CALL(mCalcLambdas->setArg(6, *mParticleLambdasCL));
+            OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcLambdas, cl::NullRange,
                                                  cl::NDRange(mNumParticles, 1), cl::NullRange));
 
 //            {
