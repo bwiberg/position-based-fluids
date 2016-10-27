@@ -43,9 +43,7 @@ __kernel void calc_densities(         const Fluid   fluid,          // 0
     const float3 position = positions[ID];
 
     const uint binID = binIDs[ID];
-    //printf("binID=%d\n", binID);
     const int3 binID3D = convert_int3(getBinID_3D(binID));
-    //printf("binID3D=[%d, %d, %d]\n", binID3D.x, binID3D.y, binID3D.z);
 
     uint neighbouringBinIDs[3 * 3 * 3];
     uint neighbouringBinCount = 0;
@@ -54,7 +52,6 @@ __kernel void calc_densities(         const Fluid   fluid,          // 0
     uint nBinStartID;
     uint nBinCount;
     uint nParticlesInNeighbouring = 0;
-    //printf("binCountX=%d, binCountY=%d, binCountZ=%d", binCountX, binCountY, binCountZ);
 
     int x, y, z;
     for (int dx = -1; dx < 2; ++dx) {
@@ -85,58 +82,16 @@ __kernel void calc_densities(         const Fluid   fluid,          // 0
 
         for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
             ++nParticlesInNeighbouring;
-            //density = density + 1.0f;
-            //densities[ID] = 100 * binID3D.z + 10 * binID3D.y + binID3D.x;
             density = density + Wpoly6(positions[pID] - position, fluid.kernelRadius);
         }
 
     }
-
-//    if (density < EPSILON) {
-//        //printf("<particle ID=%d binID=%d binCount=%d nNeighBins=%d nNeighCount=%d position=[%f, %f, %f]>\n", ID, binID, binCounts[binID], neighbouringBinCount, nParticlesInNeighbouring, position.x, position.y, position.z);
-//    }
-
-//    if (neighbouringBinCount == 27) {
-//        printf("BinID:%d, Neighbouring bins:[%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d]\n", binID,
-//                neighbouringBinIDs[0],
-//                neighbouringBinIDs[1],
-//                neighbouringBinIDs[2],
-//                neighbouringBinIDs[3],
-//                neighbouringBinIDs[4],
-//                neighbouringBinIDs[5],
-//                neighbouringBinIDs[6],
-//                neighbouringBinIDs[7],
-//                neighbouringBinIDs[8],
-//                neighbouringBinIDs[9],
-//                neighbouringBinIDs[10],
-//                neighbouringBinIDs[11],
-//                neighbouringBinIDs[12],
-//                neighbouringBinIDs[13],
-//                neighbouringBinIDs[14],
-//                neighbouringBinIDs[15],
-//                neighbouringBinIDs[16],
-//                neighbouringBinIDs[17],
-//                neighbouringBinIDs[18],
-//                neighbouringBinIDs[19],
-//                neighbouringBinIDs[20],
-//                neighbouringBinIDs[21],
-//                neighbouringBinIDs[22],
-//                neighbouringBinIDs[23],
-//                neighbouringBinIDs[24],
-//                neighbouringBinIDs[25],
-//                neighbouringBinIDs[26]);
-//    }
 
     densities[ID] = density;
 }
 
 /// from http://stackoverflow.com/questions/14845084/how-do-i-convert-a-1d-index-into-a-3d-index?noredirect=1&lq=1
 inline uint3 getBinID_3D(uint binID) {
-    //uint x = binID % binCountX;
-    //uint y = (binID / binCountX) % binCountY;
-    //uint z = binID / (binCountX * binCountY);
-    //return uint3(x, y, z);
-
     uint3 binID3D;
     binID3D.z = binID / (binCountX * binCountY);
     binID3D.y = (binID - binID3D.z * binCountX * binCountY) / binCountX;
