@@ -107,6 +107,7 @@ namespace pbf {
 
         std::unique_ptr<cl::Kernel> mCalcDensities;
         std::unique_ptr<cl::Kernel> mCalcLambdas;
+        std::unique_ptr<cl::Kernel> mCalcDeltaPositionAndDoUpdate;
 
         std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
 

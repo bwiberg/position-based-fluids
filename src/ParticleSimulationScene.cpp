@@ -53,12 +53,11 @@ namespace pbf {
 
         mGridCL = make_unique<pbf::Grid>();
         mGridCL->halfDimensions = {1.0f, 1.0f, 1.0f, 0.0f};
-        mGridCL->binSize = 0.4f;
-        mGridCL->binCount3D = {5, 5, 5, 0};
-        mGridCL->binCount = 5 * 5 * 5;
+        mGridCL->binSize = 0.25f;
+        mGridCL->binCount3D = {8, 8, 8, 0};
+        mGridCL->binCount = 8 * 8 * 8;
 
         mFluidCL = pbf::Fluid::GetDefault();
-        mFluidCL->kernelRadius = 0.4f;
 
 
         /// Create lights
@@ -129,6 +128,7 @@ namespace pbf {
 
             OCL_CHECK(mCalcDensities = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_densities", CL_ERROR));
             OCL_CHECK(mCalcLambdas = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_lambdas", CL_ERROR));
+            OCL_CHECK(mCalcDeltaPositionAndDoUpdate = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_delta_pi_and_update", CL_ERROR));
         }
 
         /// Setup timestep kernel
@@ -179,6 +179,10 @@ namespace pbf {
         Button *b = new Button(win, "Dam break");
         b->setCallback([&]() {
             this->loadFluidSetup(RESPATH("fluidSetups/dam-break.txt"));
+        });
+        b = new Button(win, "Larger dam break");
+        b->setCallback([&]() {
+            this->loadFluidSetup(RESPATH("fluidSetups/large-dam-break.txt"));
         });
         b = new Button(win, "Cube drop");
         b->setCallback([&]() {
@@ -246,6 +250,19 @@ namespace pbf {
             mPointLight->setAttenuation(att);
         });
         spotSlider->setValue(mPointLight->getAttenuation().b / 10);
+
+        win = new Window(screen, "Fluid parameters");
+        FormHelper *gui = new FormHelper(screen);
+        gui->addWindow(Eigen::Vector2i(150, 125), "Fluid parameters");
+        gui->addVariable("Sub-steps", mNumSolverIterations);
+        gui->addVariable("kernelRadius", mFluidCL->kernelRadius);
+        gui->addVariable("restDensity", mFluidCL->restDensity);
+        gui->addVariable("deltaTime", mFluidCL->deltaTime);
+        gui->addVariable("epsilon", mFluidCL->epsilon);
+        gui->addVariable("s_corr", mFluidCL->s_corr);
+        gui->addVariable("delta_q", mFluidCL->delta_q);
+        gui->addVariable("n", mFluidCL->n);
+        gui->addVariable("c", mFluidCL->c);
     }
 
     void ParticleSimulationScene::loadFluidSetup(const std::string &path) {
@@ -603,6 +620,17 @@ namespace pbf {
             /// calculate ∆pi                            ///
             /// perform collision detection and response ///
             ////////////////////////////////////////////////
+            OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(0, sizeof(pbf::Fluid), mFluidCL.get()));
+            OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(1, sizeof(pbf::Bounds), mFluidCL.get()));
+            OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(2, *mPositionsCL[mCurrentBufferID]));
+            OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(3, *mParticleBinIDCL[mCurrentBufferID]));
+            OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(4, *mBinStartIDCL));
+            OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(5, *mBinCountCL));
+            OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(6, *mDensitiesCL));
+            OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(7, *mParticleLambdasCL));
+            OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcDeltaPositionAndDoUpdate, cl::NullRange,
+                                                 cl::NDRange(mNumParticles, 1), cl::NullRange));
+
             OCL_CALL(mClipToBoundsKernel->setArg(0, *mPositionsCL[mCurrentBufferID]));
             OCL_CALL(mClipToBoundsKernel->setArg(1, *mVelocitiesCL[mCurrentBufferID]));
             OCL_CALL(mClipToBoundsKernel->setArg(2, sizeof(pbf::Bounds), mBoundsCL.get()));
