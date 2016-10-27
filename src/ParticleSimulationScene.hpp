@@ -15,6 +15,8 @@
 #include "simulation/Grid.hpp"
 #include "simulation/Fluid.hpp"
 
+#include <deque>
+
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
     /// @author Benjamin Wiberg
@@ -106,6 +108,18 @@ namespace pbf {
 
         std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
 
+        /// FPS
 
+        void updateTimeLabelsInGUI(double timeSinceLastUpdate);
+
+        std::deque<double> mSimulationTimes;
+
+        static const uint NUM_AVG_SIM_TIMES;
+
+        double mTimeOfLastUpdate;
+        uint mFramesSinceLastUpdate;
+
+        nanogui::Label *mLabelFPS;
+        nanogui::Label *mLabelAverageFrameTime;
     };
 }

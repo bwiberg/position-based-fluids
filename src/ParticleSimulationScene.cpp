@@ -10,6 +10,8 @@
 
 #include "geometry/Primitives.hpp"
 
+#include <iomanip>
+
 namespace pbf {
     using util::make_unique;
     using namespace bwgl;
@@ -182,6 +184,10 @@ namespace pbf {
             this->loadFluidSetup(RESPATH("fluidSetups/cube-drop.txt"));
         });
 
+        /// FPS Labels
+        mLabelAverageFrameTime = new Label(win, "");
+        mLabelFPS = new Label(win, "");
+        updateTimeLabelsInGUI(0.0);
 
         /// Particles size
         new Label(win, "Particle size");
@@ -362,6 +368,11 @@ namespace pbf {
         std::vector<float> densities(MAX_PARTICLES);
 
         initializeParticleStates(std::move(positions), std::move(velocities), std::move(densities));
+
+        while (!mSimulationTimes.empty()) {
+            mSimulationTimes.pop_back();
+        }
+        updateTimeLabelsInGUI(0.0);
     }
 
     // for all particles i do
@@ -394,6 +405,13 @@ namespace pbf {
     //      update position xi ⇐ x∗i
     // end for
     void ParticleSimulationScene::update() {
+        double timeBegin = glfwGetTime();
+        if (mFramesSinceLastUpdate == 0) {
+            mTimeOfLastUpdate = timeBegin;
+        }
+
+        ++mFramesSinceLastUpdate;
+
         //unsigned int previousBufferID = mCurrentBufferID;
         unsigned int previousBufferID = 0;
         mCurrentBufferID = 1 - mCurrentBufferID;
@@ -417,7 +435,6 @@ namespace pbf {
 
         /// Reset bin counts to zero
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
-        OCL_CALL(mQueue.finish());
 
         OCL_CALL(mSortInsertParticles->setArg(0, *mPositionsCL[previousBufferID]));
         OCL_CALL(mSortInsertParticles->setArg(1, *mParticleBinIDCL[previousBufferID]));
@@ -426,14 +443,10 @@ namespace pbf {
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortInsertParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
-        OCL_CALL(mQueue.finish());
-
         OCL_CALL(mSortComputeBinStartID->setArg(0, *mBinCountCL));
         OCL_CALL(mSortComputeBinStartID->setArg(1, *mBinStartIDCL));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortComputeBinStartID, cl::NullRange,
                                              cl::NDRange(mGridCL->binCount, 1), cl::NullRange));
-
-        OCL_CALL(mQueue.finish());
 
 //        {
 //            std::vector<cl_float3> positions;
@@ -493,8 +506,6 @@ namespace pbf {
 //            std::cout << "]" << std::endl;
 //        }
 
-        OCL_CALL(mQueue.finish());
-
         OCL_CALL(mSortReindexParticles->setArg(0, *mParticleBinIDCL[previousBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(1, *mParticleInBinPosCL));
         OCL_CALL(mSortReindexParticles->setArg(2, *mBinStartIDCL));
@@ -506,15 +517,12 @@ namespace pbf {
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortReindexParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
-        OCL_CALL(mQueue.finish());
-
         //////////////////////////////////
         /// Apply position corrections ///
         //////////////////////////////////
 
         /// Reset densities to zero
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mDensitiesCL, 0, 0, sizeof(cl_float) * mNumParticles));
-        OCL_CALL(mQueue.finish());
 
         for (unsigned int i = 0; i < mNumSolverIterations; ++i) {
             ////////////////////
@@ -530,10 +538,6 @@ namespace pbf {
             OCL_CALL(mCalcDensities->setArg(5, *mDensitiesCL));
             OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcDensities, cl::NullRange,
                                                  cl::NDRange(mNumParticles, 1), cl::NullRange));
-
-            OCL_CALL(mQueue.finish());
-
-            std::cout << std::endl << std::endl;
 
 //            {
 //                std::vector<float> densities;
@@ -605,6 +609,18 @@ namespace pbf {
 
         OCL_CALL(mQueue.enqueueReleaseGLObjects(&mMemObjects, NULL, &event));
         OCL_CALL(event.wait());
+
+        double timeEnd = glfwGetTime();
+        while (mSimulationTimes.size() > NUM_AVG_SIM_TIMES) {
+            mSimulationTimes.pop_back();
+        }
+        mSimulationTimes.push_front(timeEnd - timeBegin);
+
+        // update GUI twice each second
+        if (timeEnd - mTimeOfLastUpdate > 0.5) {
+            updateTimeLabelsInGUI(timeEnd - mTimeOfLastUpdate);
+            mFramesSinceLastUpdate = 0;
+        }
     }
 
     void ParticleSimulationScene::render() {
@@ -673,4 +689,23 @@ namespace pbf {
                                                 static_cast<unsigned int>(p.y)));
         return false;
     }
+
+    void ParticleSimulationScene::updateTimeLabelsInGUI(double timeSinceLastUpdate) {
+        double cumSimulationTimes = 0.0;
+        for (double simTime : mSimulationTimes) {
+            cumSimulationTimes += simTime;
+        }
+        double avgSimulationTime = cumSimulationTimes / mSimulationTimes.size();
+        std::stringstream ss;
+        ss << "MS/frame: " << std::setprecision(3) << 1000 * avgSimulationTime;
+        mLabelAverageFrameTime->setCaption(ss.str());
+
+        ss.str("");
+
+        double FPS = mFramesSinceLastUpdate / timeSinceLastUpdate;
+        ss << "Average FPS: " << std::setprecision(3) << FPS;
+        mLabelFPS->setCaption(ss.str());
+    }
+
+    const uint ParticleSimulationScene::NUM_AVG_SIM_TIMES = 10;
 }
