@@ -8,6 +8,7 @@ layout (location = 0) in vec4 position;
 layout (location = 1) in vec4 velocity;
 layout (location = 2) in float density;
 
+out float particleDensity;
 out vec3 velocity_;
 out vec3 posWorld;
 out vec3 posEye; // position of center in eye space
@@ -19,6 +20,7 @@ uniform float pointRadius;  // point size in world space
 uniform float pointScale;   // scale to calculate size in pixels
 
 void main() {
+    particleDensity = density;
     velocity_ = vec3(velocity);
     posWorld = position.xyz;
 
@@ -28,5 +30,8 @@ void main() {
     gl_PointSize = 1000 * pointRadius * (pointScale / dist);
     gl_PointSize = 10;
 
-    gl_Position = MVP * vec4(vec3(position), 1);
+    vec3 tmp = position.xyz;
+    tmp.y = -tmp.y;
+
+    gl_Position = MVP * vec4(tmp, 1);
 }

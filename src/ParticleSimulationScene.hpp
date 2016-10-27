@@ -13,6 +13,7 @@
 
 #include "simulation/Bounds.hpp"
 #include "simulation/Grid.hpp"
+#include "simulation/Fluid.hpp"
 
 namespace pbf {
     /// @brief //todo add brief description to FluidScene
@@ -54,8 +55,6 @@ namespace pbf {
 
         bool mIsRotatingCamera;
 
-        float mDeltaTime;
-
         unsigned int mNumParticles;
 
         float mParticleRadius;
@@ -84,6 +83,7 @@ namespace pbf {
         /// OpenCL stuff
         std::unique_ptr<pbf::Bounds> mBoundsCL;
         std::unique_ptr<pbf::Grid> mGridCL;
+        std::unique_ptr<pbf::Fluid> mFluidCL;
 
         std::unique_ptr<cl::Buffer> mBinCountCL; // CxCxC-sized uint buffer, containing particle count per cell
         std::unique_ptr<cl::Buffer> mBinStartIDCL;
@@ -92,6 +92,7 @@ namespace pbf {
         std::vector<cl::Memory> mMemObjects;
 
         std::unique_ptr<cl::Program> mTimestepProgram;
+        std::unique_ptr<cl::Program> mPositionAdjustmentProgram;
         std::unique_ptr<cl::Program> mClipToBoundsProgram;
         std::unique_ptr<cl::Program> mCountingSortProgram;
 

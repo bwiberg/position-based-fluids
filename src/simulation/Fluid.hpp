@@ -1,8 +1,11 @@
 #pragma once
 
+#include <memory>
+#include "util/make_unique.hpp"
+
 namespace pbf {
     struct Fluid {
-        static Fluid GetDefault();
+        static std::unique_ptr<Fluid> GetDefault();
 
         // Particle mass: 1.0kg
         // Kernel radius (h): 0.1m
@@ -24,17 +27,17 @@ namespace pbf {
         cl_float c;
     };
 
-    inline Fluid Fluid::GetDefault() {
-        Fluid fluid;
+    inline std::unique_ptr<Fluid> Fluid::GetDefault() {
+        std::unique_ptr<Fluid> fluid = util::make_unique<Fluid>();
 
-        fluid.kernelRadius  = 0.1f;
-        fluid.restDensity   = 6378f;
-        fluid.deltaTime     = 0.0083f;
-        fluid.epsilon       = 600f;
-        fluid.s_corr        = 0.0001f;
-        fluid.delta_q       = 0.03f;
-        fluid.n             = 4;
-        fluid.c             = 0.01f;
+        fluid->kernelRadius  = 0.1f;
+        fluid->restDensity   = 6378.0f;
+        fluid->deltaTime     = 0.0083f;
+        fluid->epsilon       = 600.0f;
+        fluid->s_corr        = 0.0001f;
+        fluid->delta_q       = 0.03f;
+        fluid->n             = 4;
+        fluid->c             = 0.01f;
 
         return fluid;
     }

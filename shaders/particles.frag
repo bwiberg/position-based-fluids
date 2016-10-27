@@ -17,6 +17,7 @@ struct AmbientLight {
     float intensity;
 };
 
+in float particleDensity ;
 in vec3 velocity_;
 in vec3 posWorld;
 in vec3 posEye; // position of center in eye space
@@ -48,6 +49,13 @@ void main() {
     vec3 h = normalize(lightDir + v);
     float specular = pow(max(0.0, dot(n, h)), shininess);
 
-    color = vec4(pointLight.color * pointLight.intensity * diffuse + ambLight.color * ambLight.intensity, 1);
+    //color = vec4(pointLight.color * pointLight.intensity * diffuse + ambLight.color * ambLight.intensity, 1);
     //color = vec4(1, 1, 1, 1);
+    float dens = particleDensity;
+    float x = mod(dens, 10);
+    float y = mod(dens-x, 100);
+    float z = dens-x-y;
+
+    color = vec4(vec3(particleDensity), 1);
+    //color = vec4(x/4, y/4, z/4, 1);
 }

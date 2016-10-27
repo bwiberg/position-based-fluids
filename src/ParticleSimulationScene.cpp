@@ -1,6 +1,7 @@
 #include <OpenCL/opencl.h>
 #include "ParticleSimulationScene.hpp"
 
+#include <glm/ext.hpp>
 #include "util/paths.hpp"
 #include "util/OCL_CALL.hpp"
 #include "util/make_unique.hpp"
@@ -50,9 +51,12 @@ namespace pbf {
 
         mGridCL = make_unique<pbf::Grid>();
         mGridCL->halfDimensions = {1.0f, 1.0f, 1.0f, 0.0f};
-        mGridCL->binSize = 0.5f;
-        mGridCL->binCount3D = {4, 4, 4, 0};
-        mGridCL->binCount = 4 * 4 * 4;
+        mGridCL->binSize = 0.4f;
+        mGridCL->binCount3D = {5, 5, 5, 0};
+        mGridCL->binCount = 5 * 5 * 5;
+
+        mFluidCL = pbf::Fluid::GetDefault();
+        mFluidCL->kernelRadius = 0.8f;
 
 
         /// Create lights
@@ -106,31 +110,49 @@ namespace pbf {
             OCL_CHECK(mSortReindexParticles = make_unique<Kernel>(*mCountingSortProgram, "reindex_particles", CL_ERROR));
         }
 
+        /// Setup position adjustment kernels
+        kernelSource = "";
+        if (TryReadFromFile(KERNELPATH("fluid_sim.cl"), kernelSource)) {
+            OCL_ERROR;
+            std::stringstream ss;
+            std::string defines = pbf::getDefinesCL(*mGridCL);
+            ss << std::endl << defines << std::endl << kernelSource;
+            kernelSource = ss.str();
+            OCL_CHECK(mPositionAdjustmentProgram = make_unique<Program>(mContext, kernelSource, true, CL_ERROR));
+            if (*CL_ERROR == CL_BUILD_PROGRAM_FAILURE) {
+                std::cerr << "Error building: "
+                          << mPositionAdjustmentProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
+                          << std::endl;
+            }
+
+            OCL_CHECK(mCalcDensities = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_densities", CL_ERROR));
+        }
+
         /// Setup timestep kernel
+        kernelSource = "";
         if (TryReadFromFile(KERNELPATH("timestep.cl"), kernelSource)) {
-            cl_int error;
-            mTimestepProgram = make_unique<Program>(mContext, kernelSource, true, &error);
-            if (error == CL_BUILD_PROGRAM_FAILURE) {
+            OCL_ERROR;
+            OCL_CHECK(mTimestepProgram = make_unique<Program>(mContext, kernelSource, true, CL_ERROR));
+            if (*CL_ERROR == CL_BUILD_PROGRAM_FAILURE) {
                 std::cerr << "Error building: "
                           << mTimestepProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
                           << std::endl;
             }
 
-            OCL_ERROR;
             OCL_CHECK(mTimestepKernel = make_unique<Kernel>(*mTimestepProgram, "timestep", CL_ERROR));
         }
 
         /// Setup "clip to bounds"-kernel
+        kernelSource = "";
         if (TryReadFromFile(KERNELPATH("clip_to_bounds.cl"), kernelSource)) {
-            cl_int error;
-            mClipToBoundsProgram = make_unique<Program>(mContext, kernelSource, true, &error);
-            if (error == CL_BUILD_PROGRAM_FAILURE) {
+            OCL_ERROR;
+            OCL_CHECK(mClipToBoundsProgram = make_unique<Program>(mContext, kernelSource, true, CL_ERROR));
+            if (*CL_ERROR == CL_BUILD_PROGRAM_FAILURE) {
                 std::cerr << "Error building: "
                           << mClipToBoundsProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
                           << std::endl;
             }
 
-            OCL_ERROR;
             OCL_CHECK(mClipToBoundsKernel = make_unique<Kernel>(*mClipToBoundsProgram, "clip_to_bounds", CL_ERROR));
         }
 
@@ -304,16 +326,15 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::reset() {
-        const unsigned int MAX_PARTICLES = 1000;
-        mNumParticles = 1000;
-        mDeltaTime = 1.f / 60;
+        const unsigned int MAX_PARTICLES = 40;
+        mNumParticles = MAX_PARTICLES;
         mCurrentBufferID = 0;
         mNumSolverIterations = 1;
 
         std::vector<glm::vec4> positions(MAX_PARTICLES);
 
-        std::vector<float> polarAngles = util::generate_uniform_floats(1000, -CL_M_PI/2, CL_M_PI/2);
-        std::vector<float> azimuthalAngles = util::generate_uniform_floats(1000, 0.0f, 2 * CL_M_PI);
+        std::vector<float> polarAngles = util::generate_uniform_floats(mNumParticles, -CL_M_PI/2, CL_M_PI/2);
+        std::vector<float> azimuthalAngles = util::generate_uniform_floats(mNumParticles, 0.0f, 2 * CL_M_PI);
 
         std::vector<glm::vec4> velocities(MAX_PARTICLES);
         {
@@ -380,7 +401,7 @@ namespace pbf {
 
         OCL_CALL(mTimestepKernel->setArg(0, *mPositionsCL[previousBufferID]));
         OCL_CALL(mTimestepKernel->setArg(1, *mVelocitiesCL[previousBufferID]));
-        OCL_CALL(mTimestepKernel->setArg(2, mDeltaTime));
+        OCL_CALL(mTimestepKernel->setArg(2, mFluidCL->deltaTime));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mTimestepKernel, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
@@ -388,24 +409,89 @@ namespace pbf {
         /// Counting sort ///
         /////////////////////
 
-        /// Reset bin counts to zero, d'uh
+        /// Reset bin counts to zero
         mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount);
+        mQueue.finish();
 
         OCL_CALL(mSortInsertParticles->setArg(0, *mPositionsCL[previousBufferID]));
         OCL_CALL(mSortInsertParticles->setArg(1, *mParticleBinIDCL[previousBufferID]));
-        // OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
-        // OCL_CALL(mSortInsertParticles->setArg(3, *mBinCountCL));
+        OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
+        OCL_CALL(mSortInsertParticles->setArg(3, *mBinCountCL));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortInsertParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
-        // OCL_CALL(mSortComputeBinStartID->setArg(0, *mBinCountCL));
-        // OCL_CALL(mSortComputeBinStartID->setArg(1, *mBinStartIDCL));
+        mQueue.finish();
+
+        OCL_CALL(mSortComputeBinStartID->setArg(0, *mBinCountCL));
+        OCL_CALL(mSortComputeBinStartID->setArg(1, *mBinStartIDCL));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortComputeBinStartID, cl::NullRange,
                                              cl::NDRange(mGridCL->binCount, 1), cl::NullRange));
 
+        mQueue.finish();
+
+//        {
+//            std::vector<cl_float3> positions;
+//            positions.resize(mNumParticles);
+//
+//            std::vector<cl_uint> binIDs;
+//            binIDs.resize(mNumParticles);
+//
+//            std::vector<cl_uint> binCounts;
+//            binCounts.resize(mGridCL->binCount);
+//
+//            std::vector<cl_uint> binStartIDs;
+//            binStartIDs.resize(mGridCL->binCount);
+//
+//            std::vector<cl_uint> inBinIDs;
+//            inBinIDs.resize(mNumParticles);
+//
+//            std::vector<cl_uint> newIDs;
+//            newIDs.resize(mNumParticles);
+//
+//            mQueue.enqueueReadBuffer(*mPositionsCL[previousBufferID], true, 0, sizeof(cl_float3) * mNumParticles, positions.data());
+//            mQueue.enqueueReadBuffer(*mParticleBinIDCL[previousBufferID], true, 0, sizeof(cl_uint) * mNumParticles, binIDs.data());
+//            mQueue.enqueueReadBuffer(*mBinCountCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binCounts.data());
+//            mQueue.enqueueReadBuffer(*mBinStartIDCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binStartIDs.data());
+//            mQueue.enqueueReadBuffer(*mParticleInBinPosCL, true, 0, sizeof(cl_uint) * mNumParticles, inBinIDs.data());
+//
+//            uint binID;
+//            uint falseCount = 0;
+//            //std::cout << std::endl << std::endl;
+//            for (uint i = 0; i < mNumParticles; ++i) {
+//                binID = binIDs[i];
+//                newIDs[i] = binStartIDs[binID] + inBinIDs[i];
+//
+//                cl_float3 clposition = positions[i];
+//                glm::vec3 position(clposition.s[0], clposition.s[1], clposition.s[2]);
+//                glm::uvec3 indices;
+//                indices.x = uint(clamp((position.x + mGridCL->halfDimensions.s[0]) / mGridCL->binSize, 0.0f, float(mGridCL->binCount3D.s[0] - 1)));
+//                indices.y = uint(clamp((position.y + mGridCL->halfDimensions.s[1]) / mGridCL->binSize, 0.0f, float(mGridCL->binCount3D.s[1] - 1)));
+//                indices.z = uint(clamp((position.z + mGridCL->halfDimensions.s[2]) / mGridCL->binSize, 0.0f, float(mGridCL->binCount3D.s[2] - 1)));
+//                uint index = indices.x + mGridCL->binCount3D.s[0] * indices.y + mGridCL->binCount3D.s[0] * mGridCL->binCount3D.s[1] * indices.z;
+//                if (indices == glm::uvec3(1, 1, 1)) {
+//                    std::cout << glm::to_string(position) << std::endl;
+//                }
+//            };
+//
+//            std::sort(newIDs.begin(), newIDs.end());
+//            auto iter = std::adjacent_find(newIDs.begin(), newIDs.end());
+//            std::cout << "Found " << falseCount << " particles assigned to wrong bin" << std::endl;
+//            if (iter != newIDs.end()) {
+//                std::cout << "Found particles with duplicate IDs!" << std::endl;
+//            }
+//
+//            std::cout << "Bin counts: [";
+//            for (uint binCount : binCounts) {
+//                std::cout << binCount << ", ";
+//            }
+//            std::cout << "]" << std::endl;
+//        }
+
+        mQueue.finish();
+
         OCL_CALL(mSortReindexParticles->setArg(0, *mParticleBinIDCL[previousBufferID]));
-        // OCL_CALL(mSortReindexParticles->setArg(1, *mParticleInBinPosCL));
-        // OCL_CALL(mSortReindexParticles->setArg(2, *mBinStartIDCL));
+        OCL_CALL(mSortReindexParticles->setArg(1, *mParticleInBinPosCL));
+        OCL_CALL(mSortReindexParticles->setArg(2, *mBinStartIDCL));
         OCL_CALL(mSortReindexParticles->setArg(3, *mPositionsCL[previousBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(4, *mVelocitiesCL[previousBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(5, *mPositionsCL[mCurrentBufferID]));
@@ -414,9 +500,15 @@ namespace pbf {
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortReindexParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
+        mQueue.finish();
+
         //////////////////////////////////
         /// Apply position corrections ///
         //////////////////////////////////
+
+        /// Reset densities to zero
+        mQueue.enqueueFillBuffer<cl_uint>(*mDensitiesCL, 0, 0, sizeof(cl_float) * mNumParticles);
+        mQueue.finish();
 
         for (unsigned int i = 0; i < mNumSolverIterations; ++i) {
             ////////////////////
@@ -424,6 +516,64 @@ namespace pbf {
             ////////////////////
 
             /// Calculate densities
+            OCL_CALL(mCalcDensities->setArg(0, sizeof(pbf::Fluid), mFluidCL.get()));
+            OCL_CALL(mCalcDensities->setArg(1, *mPositionsCL[mCurrentBufferID]));
+            OCL_CALL(mCalcDensities->setArg(2, *mParticleBinIDCL[mCurrentBufferID]));
+            OCL_CALL(mCalcDensities->setArg(3, *mBinStartIDCL));
+            OCL_CALL(mCalcDensities->setArg(4, *mBinCountCL));
+            OCL_CALL(mCalcDensities->setArg(5, *mDensitiesCL));
+            OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcDensities, cl::NullRange,
+                                                 cl::NDRange(mNumParticles, 1), cl::NullRange));
+
+            mQueue.finish();
+
+            std::cout << std::endl << std::endl;
+
+//            {
+//                std::vector<float> densities;
+//                densities.resize(mNumParticles);
+//
+//                std::vector<cl_float3> positions;
+//                positions.resize(mNumParticles);
+//
+//                std::vector<cl_uint> binIDs;
+//                binIDs.resize(mNumParticles);
+//
+//
+//                mQueue.enqueueReadBuffer(*mDensitiesCL, true, 0, sizeof(cl_float) * mNumParticles, densities.data());
+//                mQueue.enqueueReadBuffer(*mPositionsCL[mCurrentBufferID], true, 0, sizeof(cl_float3) * mNumParticles, positions.data());
+//                mQueue.enqueueReadBuffer(*mParticleBinIDCL[mCurrentBufferID], true, 0, sizeof(cl_uint) * mNumParticles, binIDs.data());
+//
+//                std::cout << std::endl << std::endl;
+//                for (uint i = 0; i < 50; ++i) {
+//                    float d = densities[i];
+//                    cl_float3 p = positions[i];
+//                    cl_uint b = binIDs[i];
+//
+//                    std::cout << "Pos={" << p.s[0] << ", " << p.s[1] << ", " << p.s[2] << "}"
+//                              << ", BinID=" << b
+//                              << ", Density=" << d
+//                              << std::endl << std::endl;
+//                };
+//                std::cout << std::endl << std::endl;
+//            }
+
+            {
+                std::vector<cl_uint> binCounts;
+                binCounts.resize(mGridCL->binCount);
+
+                std::vector<cl_uint> binStartIDs;
+                binStartIDs.resize(mGridCL->binCount);
+
+                mQueue.enqueueReadBuffer(*mBinCountCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binCounts.data());
+                mQueue.enqueueReadBuffer(*mBinStartIDCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binStartIDs.data());
+
+                std::cout << std::endl << std::endl;
+                for (uint i = 0; i < binCounts.size(); ++i) {
+                    std::cout << i << ", " << binCounts[i] << ", " << binStartIDs[i] << std::endl;
+                };
+                std::cout << std::endl << std::endl;
+            }
 
 
             ////////////////////////////////////////////////
@@ -432,7 +582,7 @@ namespace pbf {
             ////////////////////////////////////////////////
             OCL_CALL(mClipToBoundsKernel->setArg(0, *mPositionsCL[mCurrentBufferID]));
             OCL_CALL(mClipToBoundsKernel->setArg(1, *mVelocitiesCL[mCurrentBufferID]));
-            //OCL_CALL(mClipToBoundsKernel->setArg(2, sizeof(pbf::Bounds), mBoundsCL.get()));
+            OCL_CALL(mClipToBoundsKernel->setArg(2, sizeof(pbf::Bounds), mBoundsCL.get()));
             OCL_CALL(mQueue.enqueueNDRangeKernel(*mClipToBoundsKernel, cl::NullRange,
                                                  cl::NDRange(mNumParticles, 1), cl::NullRange));
 
@@ -470,12 +620,10 @@ namespace pbf {
         mPointLight->setUniformsInShader(mParticlesShader, "pointLight");
         mAmbLight->setUniformsInShader(mParticlesShader, "ambLight");
 
-        //mParticles[mCurrentBufferID]->bind();
-        mParticles[0]->bind();
+        mParticles[mCurrentBufferID]->bind();
         OGL_CALL(glPointSize(mParticleRadius));
         OGL_CALL(glDrawArrays(GL_POINTS, 0, (GLsizei) mNumParticles));
-        //mParticles[mCurrentBufferID]->unbind();
-        mParticles[0]->unbind();
+        mParticles[mCurrentBufferID]->unbind();
 
         // Cull front faces to only render box insides
         OGL_CALL(glCullFace(GL_FRONT));

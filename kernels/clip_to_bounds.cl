@@ -4,20 +4,21 @@ typedef struct def_Bounds {
 } Bounds;
 
 #define EPSILON 0.000001f
+#define ID get_global_id(0)
 
 __kernel void clip_to_bounds(__global float3* positions,
                              __global float3* velocities,
                              const Bounds bounds) {
-    __private const uint id = get_global_id(0);
-    const float3 origPosition = positions[id];
+
+    const float3 origPosition = positions[ID];
 
     // Clamp the xyz-coordinates to the bounds seperately
-    positions[id] = clamp(origPosition, -bounds.halfDimensions, bounds.halfDimensions);
+    positions[ID] = clamp(origPosition, -bounds.halfDimensions, bounds.halfDimensions);
 
     // Get the shift in position, i.e. diff between corrected and original positions
-    const float3 diff = positions[id] - origPosition;
+    const float3 diff = positions[ID] - origPosition;
     const float3 didChange = convert_float3(fabs(diff) > EPSILON);
 
     // Multiply the velocity components with the above sign
-    velocities[id] = velocities[id] * (1 + 2 * didChange);
+    velocities[ID] = velocities[ID] * (1 + 2 * didChange);
 }

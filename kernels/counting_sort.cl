@@ -1,3 +1,6 @@
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+
+#define ID get_global_id(0)
 /// Pre-processor defines that specify grid parameters
 /// halfDims[Z,Y,Z]         // The dimensions/2 of the grid
 /// binSize                 // The side-length of a bin
@@ -8,16 +11,15 @@
 inline uint3 getBinID_3D(const float3 position) {
 #ifndef NO_EDGE_CLAMP
     uint3 indices;
-
-//    indices.x = convert_uint_rtn(clamp((position.x + halfDimsX) / binSize, 0.0f, convert_float(binCountX - 1)));
-//    indices.y = convert_uint_rtn(clamp((position.y + halfDimsY) / binSize, 0.0f, convert_float(binCountY - 1)));
-//    indices.z = convert_uint_rtn(clamp((position.z + halfDimsZ) / binSize, 0.0f, convert_float(binCountZ - 1)));
-//    return indices;
-    return convert_uint3(clamp(
-        floor((position + float3(halfDimsZ,halfDimsY,halfDimsZ)) / binSize),
-        float3(0,0,0),
-        float3(binCountZ-1, binCountY-1, binCountZ-1)
-    ));
+    indices.x = convert_uint_rtn(clamp((position.x + halfDimsX) / binSize, 0.0f, convert_float(binCountX - 1)));
+    indices.y = convert_uint_rtn(clamp((position.y + halfDimsY) / binSize, 0.0f, convert_float(binCountY - 1)));
+    indices.z = convert_uint_rtn(clamp((position.z + halfDimsZ) / binSize, 0.0f, convert_float(binCountZ - 1)));
+    return indices;
+//    return convert_uint3(clamp(
+//        floor((position + float3(halfDimsZ,halfDimsY,halfDimsZ)) / binSize),
+//        float3(0,0,0),
+//        float3(binCountZ-1, binCountY-1, binCountZ-1)
+//    ));
 #elif
     // ifdef NO_EDGE_CLAMP
     return convert_uint3( floor((position + float3(halfDimsZ,halfDimsY,halfDimsZ))) / binSize) );
@@ -29,30 +31,26 @@ inline uint getBinID(const uint3 binID_3D) {
 }
 
 __kernel void insert_particles(__global const float3    *positions,
-                               __global uint            *particleBinID,
-                               __global uint            *particleInBinID,
-                               __global uint            *binCounts) {
-    const uint id = get_global_id(0);
-
+                               __global volatile uint   *particleBinID,
+                               __global volatile uint   *particleInBinID,
+                               __global volatile uint   *binCounts) {
     // Compute the bin ID of this particle
-    const uint binID = getBinID(getBinID_3D(positions[id]));
-    particleBinID[id] = binID;
+    const uint binID = getBinID(getBinID_3D(positions[ID]));
+    particleBinID[ID] = binID;
 
     // Read the current count of particles in the bin and store in this particle's "within-bin-ID"
     // Increment the particle count of the bin
-    particleInBinID[id] = atomic_inc(&binCounts[binID]);
+    particleInBinID[ID] = atomic_inc(&binCounts[binID]);
 }
 
 __kernel void compute_bin_start_ID(__global const uint  *binCounts,
                                    __global uint        *binStartID) {
-    const uint id = get_global_id(0);
-
     uint count = 0;
-    for (uint prior_id = 0; prior_id < id; ++prior_id) {
-        count += binCounts[prior_id];
+    for (uint prior_id = 0; prior_id < ID; ++prior_id) {
+        count = count + binCounts[prior_id];
     }
 
-    binStartID[id] = count;
+    binStartID[ID] = count;
 }
 
 __kernel void reindex_particles(__global const uint     *particleBinIDsOld,     // 0
@@ -64,12 +62,10 @@ __kernel void reindex_particles(__global const uint     *particleBinIDsOld,     
                                 __global float3         *velocitiesNew,         // 6
                                 __global uint           *particleBinIDsNew) {   // 7
 
-    const uint id = get_global_id(0);
-
-    const uint idNew = binStartID[particleBinIDsOld[id]] + particleInBinID[id];
+    const uint idNew = binStartID[particleBinIDsOld[ID]] + particleInBinID[ID];
 
     // Copy particle state to new position
-    positionsNew[idNew] = positionsOld[id];
-    velocitiesNew[idNew] = velocitiesOld[id];
-    particleBinIDsNew[idNew] = particleBinIDsOld[id];
+    positionsNew[idNew] = positionsOld[ID];
+    velocitiesNew[idNew] = velocitiesOld[ID];
+    particleBinIDsNew[idNew] = particleBinIDsOld[ID];
 }
