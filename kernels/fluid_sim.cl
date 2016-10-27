@@ -5,20 +5,28 @@
 /// binCount                // The total number of bins in the grid
 /// NO_EDGE_CLAMP
 
+//#define USE_FAST_SQRT
+#define ONE_OVER_SQRT_OF_3 0.577350
 #define ZERO3F float3(0.0f, 0.0f, 0.0f)
 #define EPSILON 0.0001f
 #define PI 3.1415926535f
 #define ID get_global_id(0)
+
+#define MAX_DELTA_PI float3(0.1f, 0.1f, 0.1f)
 
 typedef struct def_Fluid {
     float kernelRadius;
     float restDensity;
     float deltaTime;
     float epsilon;
-    float s_corr;
+    float k;
     float delta_q;
     uint n;
     float c;
+
+    float kBoundsDensity;
+    float boundaryRadius;
+    float kBoundsForce;
 } Fluid;
 
 typedef struct def_Bounds {
@@ -41,12 +49,15 @@ float3 grad_Wspiky(const float3 r, const float h);
 
 float sqroot(float x__);
 
+float calc_bound_density_contribution(float dx_, float kernelRadius_);
+
 __kernel void calc_densities(         const Fluid   fluid,          // 0
-                             __global const float3  *positions,     // 1
-                             __global const uint    *binIDs,        // 2
-                             __global const uint    *binStartIDs,   // 3
-                             __global const uint    *binCounts,     // 4
-                             __global float         *densities) {   // 5
+                                      const Bounds  bounds,         // 1
+                             __global const float3  *positions,     // 2
+                             __global const uint    *binIDs,        // 3
+                             __global const uint    *binStartIDs,   // 4
+                             __global const uint    *binCounts,     // 5
+                             __global float         *densities) {   // 6
 
     float density = 0.0f;
     const float3 position = positions[ID];
@@ -94,7 +105,22 @@ __kernel void calc_densities(         const Fluid   fluid,          // 0
 
     }
 
-    densities[ID] = density;
+    /// Boundary density contributions
+    float b_density = 0.0f;
+    // x-left
+    b_density = b_density + calc_bound_density_contribution(position.x + bounds.halfDimensions.x, fluid.kernelRadius);
+    // x-right
+    b_density = b_density + calc_bound_density_contribution(bounds.halfDimensions.x - position.x, fluid.kernelRadius);
+    // y-down
+    b_density = b_density + calc_bound_density_contribution(position.y + bounds.halfDimensions.y, fluid.kernelRadius);
+    // y-up
+    b_density = b_density + calc_bound_density_contribution(bounds.halfDimensions.y - position.y, fluid.kernelRadius);
+    // z-near
+    b_density = b_density + calc_bound_density_contribution(position.z + bounds.halfDimensions.z, fluid.kernelRadius);
+    // z-far
+    b_density = b_density + calc_bound_density_contribution(bounds.halfDimensions.z - position.z, fluid.kernelRadius);
+
+    densities[ID] = density + fluid.kBoundsDensity * b_density;
 }
 
 __kernel void calc_lambdas(const Fluid            fluid,          // 0
@@ -232,6 +258,8 @@ __kernel void calc_delta_pi_and_update(const Fluid            fluid,          //
         }
     }
 
+    float3 k_position = ZERO3F;
+    float s_corr = 0.0f;
     for (uint i = 0; i < neighbouringBinCount; ++i) {
         uint nBinID = neighbouringBinIDs[i];
 
@@ -239,15 +267,42 @@ __kernel void calc_delta_pi_and_update(const Fluid            fluid,          //
         nBinCount = binCounts[nBinID];
 
         for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
-            delta_pi = delta_pi + (lambda + lambdas[pID]) * grad_Wspiky(position - positions[pID], fluid.kernelRadius);
+            k_position = positions[pID];
+            s_corr = - fluid.k * pow(Wpoly6(position - k_position, fluid.kernelRadius) /
+                    Wpoly6(float3(ONE_OVER_SQRT_OF_3 * fluid.delta_q,
+                                  ONE_OVER_SQRT_OF_3 * fluid.delta_q,
+                                  ONE_OVER_SQRT_OF_3 * fluid.delta_q),
+                           fluid.kernelRadius), fluid.n);
+            delta_pi = delta_pi + (lambda + lambdas[pID] + s_corr) * grad_Wspiky(position - k_position, fluid.kernelRadius);
         }
     }
 
-    delta_pi = delta_pi / fluid.restDensity;
+    /// Boundary contributions
+    float3 b_delta_pi = ZERO3F;
+    // x-left
+    b_delta_pi = b_delta_pi + float3(1.0f, 0.0f, 0.0f) *
+                              calc_bound_density_contribution(position.x + bounds.halfDimensions.x, fluid.boundaryRadius);
+    // x-right
+    b_delta_pi = b_delta_pi + float3(-1.0f, 0.0f, 0.0f) *
+                              calc_bound_density_contribution(bounds.halfDimensions.x - position.x, fluid.boundaryRadius);
+    // y-down
+    b_delta_pi = b_delta_pi + float3(0.0f, 1.0f, 0.0f) *
+                              calc_bound_density_contribution(position.y + bounds.halfDimensions.y, fluid.boundaryRadius);
+    // y-up
+    b_delta_pi = b_delta_pi + float3(0.0f, -1.0f, 0.0f) *
+                              calc_bound_density_contribution(bounds.halfDimensions.y - position.y, fluid.boundaryRadius);
+    // z-near
+    b_delta_pi = b_delta_pi + float3(1.0f, 0.0f, 1.0f) *
+                              calc_bound_density_contribution(position.z + bounds.halfDimensions.z, fluid.boundaryRadius);
+    // z-far
+    b_delta_pi = b_delta_pi + float3(0.0f, 0.0f, -1.0f) *
+                              calc_bound_density_contribution(bounds.halfDimensions.z - position.z, fluid.boundaryRadius);
+
+    delta_pi = delta_pi / fluid.restDensity + fluid.kBoundsForce * b_delta_pi;
 
     // Clip to bounds etc.
 
-    positions[ID] = position + delta_pi;
+    positions[ID] = position + clamp(delta_pi, - MAX_DELTA_PI, MAX_DELTA_PI);
 }
 
 /// from http://stackoverflow.com/questions/14845084/how-do-i-convert-a-1d-index-into-a-3d-index?noredirect=1&lq=1
@@ -304,4 +359,16 @@ inline float sqroot(float x__) {
 #else
     return sqrt(x__);
 #endif
+}
+
+inline float calc_bound_density_contribution(float dx_, float kernelRadius_) {
+    if (dx_ > kernelRadius_) {
+        return 0.0f;
+    }
+
+    if (dx_ <= 0.0f) {
+        return (2 * PI / 3);
+    }
+
+    return (2 * PI / 3) * pow(kernelRadius_ - dx_, 2) * (kernelRadius_ + dx_);
 }

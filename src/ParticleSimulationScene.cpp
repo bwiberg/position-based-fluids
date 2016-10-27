@@ -259,10 +259,13 @@ namespace pbf {
         gui->addVariable("restDensity", mFluidCL->restDensity);
         gui->addVariable("deltaTime", mFluidCL->deltaTime);
         gui->addVariable("epsilon", mFluidCL->epsilon);
-        gui->addVariable("s_corr", mFluidCL->s_corr);
+        gui->addVariable("k", mFluidCL->k);
         gui->addVariable("delta_q", mFluidCL->delta_q);
         gui->addVariable("n", mFluidCL->n);
         gui->addVariable("c", mFluidCL->c);
+        gui->addVariable("kBoundsDensity", mFluidCL->kBoundsDensity);
+        gui->addVariable("boundaryRadius", mFluidCL->boundaryRadius);
+        gui->addVariable("kBoundsForce", mFluidCL->kBoundsForce);
     }
 
     void ParticleSimulationScene::loadFluidSetup(const std::string &path) {
@@ -550,11 +553,12 @@ namespace pbf {
 
             /// Calculate densities
             OCL_CALL(mCalcDensities->setArg(0, sizeof(pbf::Fluid), mFluidCL.get()));
-            OCL_CALL(mCalcDensities->setArg(1, *mPositionsCL[mCurrentBufferID]));
-            OCL_CALL(mCalcDensities->setArg(2, *mParticleBinIDCL[mCurrentBufferID]));
-            OCL_CALL(mCalcDensities->setArg(3, *mBinStartIDCL));
-            OCL_CALL(mCalcDensities->setArg(4, *mBinCountCL));
-            OCL_CALL(mCalcDensities->setArg(5, *mDensitiesCL));
+            OCL_CALL(mCalcDensities->setArg(1, sizeof(pbf::Bounds), mBoundsCL.get()));
+            OCL_CALL(mCalcDensities->setArg(2, *mPositionsCL[mCurrentBufferID]));
+            OCL_CALL(mCalcDensities->setArg(3, *mParticleBinIDCL[mCurrentBufferID]));
+            OCL_CALL(mCalcDensities->setArg(4, *mBinStartIDCL));
+            OCL_CALL(mCalcDensities->setArg(5, *mBinCountCL));
+            OCL_CALL(mCalcDensities->setArg(6, *mDensitiesCL));
             OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcDensities, cl::NullRange,
                                                  cl::NDRange(mNumParticles, 1), cl::NullRange));
 
@@ -620,6 +624,8 @@ namespace pbf {
             /// calculate ∆pi                            ///
             /// perform collision detection and response ///
             ////////////////////////////////////////////////
+
+            /// calculate ∆pi and update x*i
             OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(0, sizeof(pbf::Fluid), mFluidCL.get()));
             OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(1, sizeof(pbf::Bounds), mFluidCL.get()));
             OCL_CALL(mCalcDeltaPositionAndDoUpdate->setArg(2, *mPositionsCL[mCurrentBufferID]));
@@ -647,6 +653,8 @@ namespace pbf {
         /// apply vorticity confinement and XSPH viscosity ///
         /// update position xi ⇐ x∗i                      ///
         //////////////////////////////////////////////////////
+
+
 
         OCL_CALL(mQueue.enqueueReleaseGLObjects(&mMemObjects, NULL, &event));
         OCL_CALL(event.wait());

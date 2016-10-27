@@ -3,7 +3,7 @@ typedef struct def_Fluid {
     float restDensity;
     float deltaTime;
     float epsilon;
-    float s_corr;
+    float k;
     float delta_q;
     uint n;
     float c;

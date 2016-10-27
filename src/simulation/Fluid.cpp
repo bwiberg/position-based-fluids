@@ -8,10 +8,14 @@ namespace pbf {
         fluid->restDensity   = 6378.0f;
         fluid->deltaTime     = 0.0083f;
         fluid->epsilon       = 600.0f;
-        fluid->s_corr        = 0.0001f;
+        fluid->k             = 0.0001f;
         fluid->delta_q       = 0.03f;
         fluid->n             = 4;
         fluid->c             = 0.01f;
+
+        fluid->kBoundsDensity = 1.0f;
+        fluid->boundaryRadius = 0.02f;
+        fluid->kBoundsForce = 1.0f;
 
         return fluid;
     }
