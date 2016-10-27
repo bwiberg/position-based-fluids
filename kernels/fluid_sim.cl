@@ -21,6 +21,12 @@ typedef struct def_Fluid {
     float c;
 } Fluid;
 
+typedef struct def_Bounds {
+    float3 dimensions;
+    float3 halfDimensions;
+} Bounds;
+
+
 uint3 getBinID_3D(uint binID);
 
 uint getBinID(const uint3 binID_3D);
@@ -178,6 +184,70 @@ __kernel void calc_lambdas(const Fluid            fluid,          // 0
     lambdas[ID] = lambda;
 
     //printf("<particle ID=%d density=%f lambda=%f>\n", ID, density, lambda);
+}
+
+__kernel void calc_delta_pi_and_update(const Fluid            fluid,          // 0
+                                       const Bounds           bounds,         // 1
+                                       __global float3        *positions,     // 2
+                                       __global const uint    *binIDs,        // 3
+                                       __global const uint    *binStartIDs,   // 4
+                                       __global const uint    *binCounts,     // 5
+                                       __global const float   *densities,     // 6
+                                       __global const float   *lambdas) {     // 7
+
+    const float3 position = positions[ID];
+    const float density = densities[ID];
+    const float lambda = lambdas[ID];
+
+    const uint binID = binIDs[ID];
+    const int3 binID3D = convert_int3(getBinID_3D(binID));
+
+    /// Find all neighbours
+    uint neighbouringBinIDs[3 * 3 * 3];
+    uint neighbouringBinCount = 0;
+
+    uint nBinID;
+    uint nBinStartID;
+    uint nBinCount;
+
+    float3 delta_pi = ZERO3F;
+
+    int x, y, z;
+    for (int dx = -1; dx < 2; ++dx) {
+        x = binID3D.x + dx;
+        if (x+1 == clamp(x+1, 1, binCountX)) {
+            for (int dy = -1; dy < 2; ++dy) {
+                y = binID3D.y + dy;
+                if (y+1 == clamp(y+1, 1, binCountY)) {
+                    for (int dz = -1; dz < 2; ++dz) {
+                        z = binID3D.z + dz;
+                        if  (z+1 == clamp(z+1, 1, binCountZ)) {
+                            nBinID = x + binCountX * y + binCountX * binCountY * z;
+                            neighbouringBinIDs[neighbouringBinCount] = nBinID;
+                            ++neighbouringBinCount;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (uint i = 0; i < neighbouringBinCount; ++i) {
+        uint nBinID = neighbouringBinIDs[i];
+
+        nBinStartID = binStartIDs[nBinID];
+        nBinCount = binCounts[nBinID];
+
+        for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
+            delta_pi = delta_pi + (lambda + lambdas[pID]) * grad_Wspiky(position - positions[pID], fluid.kernelRadius);
+        }
+    }
+
+    delta_pi = delta_pi / fluid.restDensity;
+
+    // Clip to bounds etc.
+
+    positions[ID] = position + delta_pi;
 }
 
 /// from http://stackoverflow.com/questions/14845084/how-do-i-convert-a-1d-index-into-a-3d-index?noredirect=1&lq=1

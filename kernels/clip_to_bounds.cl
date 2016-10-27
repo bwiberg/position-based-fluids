@@ -20,5 +20,5 @@ __kernel void clip_to_bounds(__global float3* positions,
     const float3 didChange = convert_float3(fabs(diff) > EPSILON);
 
     // Multiply the velocity components with the above sign
-    velocities[ID] = velocities[ID] * (1 + 2 * didChange);
+    velocities[ID] = velocities[ID] * (1 + didChange);
 }
