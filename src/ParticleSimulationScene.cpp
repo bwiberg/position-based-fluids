@@ -56,7 +56,7 @@ namespace pbf {
         mGridCL->binCount = 5 * 5 * 5;
 
         mFluidCL = pbf::Fluid::GetDefault();
-        mFluidCL->kernelRadius = 0.8f;
+        mFluidCL->kernelRadius = 0.4f;
 
 
         /// Create lights
@@ -313,6 +313,12 @@ namespace pbf {
         OCL_CHECK(mParticleBinIDCL[0] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
         OCL_CHECK(mParticleBinIDCL[1] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
 
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinStartIDCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleInBinPosCL, 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[0], 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[1], 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
+
         /// Set these arguments of the kernel since they don't flip their buffers
         OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
         OCL_CALL(mSortInsertParticles->setArg(3, *mBinCountCL));
@@ -326,7 +332,7 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::reset() {
-        const unsigned int MAX_PARTICLES = 40;
+        const unsigned int MAX_PARTICLES = 2000;
         mNumParticles = MAX_PARTICLES;
         mCurrentBufferID = 0;
         mNumSolverIterations = 1;
@@ -410,8 +416,8 @@ namespace pbf {
         /////////////////////
 
         /// Reset bin counts to zero
-        mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount);
-        mQueue.finish();
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
+        OCL_CALL(mQueue.finish());
 
         OCL_CALL(mSortInsertParticles->setArg(0, *mPositionsCL[previousBufferID]));
         OCL_CALL(mSortInsertParticles->setArg(1, *mParticleBinIDCL[previousBufferID]));
@@ -420,14 +426,14 @@ namespace pbf {
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortInsertParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
-        mQueue.finish();
+        OCL_CALL(mQueue.finish());
 
         OCL_CALL(mSortComputeBinStartID->setArg(0, *mBinCountCL));
         OCL_CALL(mSortComputeBinStartID->setArg(1, *mBinStartIDCL));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortComputeBinStartID, cl::NullRange,
                                              cl::NDRange(mGridCL->binCount, 1), cl::NullRange));
 
-        mQueue.finish();
+        OCL_CALL(mQueue.finish());
 
 //        {
 //            std::vector<cl_float3> positions;
@@ -487,7 +493,7 @@ namespace pbf {
 //            std::cout << "]" << std::endl;
 //        }
 
-        mQueue.finish();
+        OCL_CALL(mQueue.finish());
 
         OCL_CALL(mSortReindexParticles->setArg(0, *mParticleBinIDCL[previousBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(1, *mParticleInBinPosCL));
@@ -500,15 +506,15 @@ namespace pbf {
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortReindexParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
-        mQueue.finish();
+        OCL_CALL(mQueue.finish());
 
         //////////////////////////////////
         /// Apply position corrections ///
         //////////////////////////////////
 
         /// Reset densities to zero
-        mQueue.enqueueFillBuffer<cl_uint>(*mDensitiesCL, 0, 0, sizeof(cl_float) * mNumParticles);
-        mQueue.finish();
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mDensitiesCL, 0, 0, sizeof(cl_float) * mNumParticles));
+        OCL_CALL(mQueue.finish());
 
         for (unsigned int i = 0; i < mNumSolverIterations; ++i) {
             ////////////////////
@@ -525,7 +531,7 @@ namespace pbf {
             OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcDensities, cl::NullRange,
                                                  cl::NDRange(mNumParticles, 1), cl::NullRange));
 
-            mQueue.finish();
+            OCL_CALL(mQueue.finish());
 
             std::cout << std::endl << std::endl;
 
@@ -558,22 +564,22 @@ namespace pbf {
 //                std::cout << std::endl << std::endl;
 //            }
 
-            {
-                std::vector<cl_uint> binCounts;
-                binCounts.resize(mGridCL->binCount);
-
-                std::vector<cl_uint> binStartIDs;
-                binStartIDs.resize(mGridCL->binCount);
-
-                mQueue.enqueueReadBuffer(*mBinCountCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binCounts.data());
-                mQueue.enqueueReadBuffer(*mBinStartIDCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binStartIDs.data());
-
-                std::cout << std::endl << std::endl;
-                for (uint i = 0; i < binCounts.size(); ++i) {
-                    std::cout << i << ", " << binCounts[i] << ", " << binStartIDs[i] << std::endl;
-                };
-                std::cout << std::endl << std::endl;
-            }
+//            {
+//                std::vector<cl_uint> binCounts;
+//                binCounts.resize(mGridCL->binCount);
+//
+//                std::vector<cl_uint> binStartIDs;
+//                binStartIDs.resize(mGridCL->binCount);
+//
+//                mQueue.enqueueReadBuffer(*mBinCountCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binCounts.data());
+//                mQueue.enqueueReadBuffer(*mBinStartIDCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binStartIDs.data());
+//
+//                std::cout << std::endl << std::endl;
+//                for (uint i = 0; i < binCounts.size(); ++i) {
+//                    std::cout << i << ", " << binCounts[i] << ", " << binStartIDs[i] << std::endl;
+//                };
+//                std::cout << std::endl << std::endl;
+//            }
 
 
             ////////////////////////////////////////////////

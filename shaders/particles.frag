@@ -56,6 +56,6 @@ void main() {
     float y = mod(dens-x, 100);
     float z = dens-x-y;
 
-    color = vec4(vec3(particleDensity), 1);
+    color = vec4(vec3(particleDensity/5000), 1);
     //color = vec4(x/4, y/4, z/4, 1);
 }

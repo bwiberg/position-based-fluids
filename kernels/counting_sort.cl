@@ -10,11 +10,9 @@
 
 inline uint3 getBinID_3D(const float3 position) {
 #ifndef NO_EDGE_CLAMP
-    uint3 indices;
-    indices.x = convert_uint_rtn(clamp((position.x + halfDimsX) / binSize, 0.0f, convert_float(binCountX - 1)));
-    indices.y = convert_uint_rtn(clamp((position.y + halfDimsY) / binSize, 0.0f, convert_float(binCountY - 1)));
-    indices.z = convert_uint_rtn(clamp((position.z + halfDimsZ) / binSize, 0.0f, convert_float(binCountZ - 1)));
-    return indices;
+    float3 tmp = (position + float3(halfDimsX, halfDimsY, halfDimsZ)) / binSize;
+    uint3 indices = convert_uint3(floor(tmp));
+    return clamp(indices, uint3(0, 0, 0), uint3(binCountX-1, binCountY-1, binCountZ-1));
 //    return convert_uint3(clamp(
 //        floor((position + float3(halfDimsZ,halfDimsY,halfDimsZ)) / binSize),
 //        float3(0,0,0),
