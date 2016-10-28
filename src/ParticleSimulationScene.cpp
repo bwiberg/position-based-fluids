@@ -267,8 +267,6 @@ namespace pbf {
         gui->addVariable("n", mFluidCL->n);
         gui->addVariable("c", mFluidCL->c);
         gui->addVariable("kBoundsDensity", mFluidCL->kBoundsDensity);
-        gui->addVariable("boundaryRadius", mFluidCL->boundaryRadius);
-        gui->addVariable("kBoundsForce", mFluidCL->kBoundsForce);
     }
 
     void ParticleSimulationScene::loadFluidSetup(const std::string &path) {

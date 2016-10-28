@@ -28,7 +28,5 @@ namespace pbf {
         cl_float c;
 
         cl_float kBoundsDensity;
-        cl_float boundaryRadius;
-        cl_float kBoundsForce;
     };
 }

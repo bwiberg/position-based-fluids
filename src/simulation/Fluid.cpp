@@ -14,8 +14,6 @@ namespace pbf {
         fluid->c             = 0.01f;
 
         fluid->kBoundsDensity = 1.0f;
-        fluid->boundaryRadius = 0.02f;
-        fluid->kBoundsForce = 1.0f;
 
         return fluid;
     }

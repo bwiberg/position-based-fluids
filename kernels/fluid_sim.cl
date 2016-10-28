@@ -25,8 +25,6 @@ typedef struct def_Fluid {
     float c;
 
     float kBoundsDensity;
-    float boundaryRadius;
-    float kBoundsForce;
 } Fluid;
 
 typedef struct def_Bounds {
@@ -277,28 +275,7 @@ __kernel void calc_delta_pi_and_update(const Fluid            fluid,          //
         }
     }
 
-    /// Boundary contributions
-    float3 b_delta_pi = ZERO3F;
-    // x-left
-    b_delta_pi = b_delta_pi + float3(1.0f, 0.0f, 0.0f) *
-                              calc_bound_density_contribution(position.x + bounds.halfDimensions.x, fluid.boundaryRadius);
-    // x-right
-    b_delta_pi = b_delta_pi + float3(-1.0f, 0.0f, 0.0f) *
-                              calc_bound_density_contribution(bounds.halfDimensions.x - position.x, fluid.boundaryRadius);
-    // y-down
-    b_delta_pi = b_delta_pi + float3(0.0f, 1.0f, 0.0f) *
-                              calc_bound_density_contribution(position.y + bounds.halfDimensions.y, fluid.boundaryRadius);
-    // y-up
-    b_delta_pi = b_delta_pi + float3(0.0f, -1.0f, 0.0f) *
-                              calc_bound_density_contribution(bounds.halfDimensions.y - position.y, fluid.boundaryRadius);
-    // z-near
-    b_delta_pi = b_delta_pi + float3(1.0f, 0.0f, 1.0f) *
-                              calc_bound_density_contribution(position.z + bounds.halfDimensions.z, fluid.boundaryRadius);
-    // z-far
-    b_delta_pi = b_delta_pi + float3(0.0f, 0.0f, -1.0f) *
-                              calc_bound_density_contribution(bounds.halfDimensions.z - position.z, fluid.boundaryRadius);
-
-    delta_pi = delta_pi / fluid.restDensity + fluid.kBoundsForce * b_delta_pi;
+    delta_pi = delta_pi / fluid.restDensity;
 
     // Clip to bounds etc.
 
