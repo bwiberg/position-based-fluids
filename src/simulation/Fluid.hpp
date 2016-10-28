@@ -26,6 +26,8 @@ namespace pbf {
         cl_uint n;
         // Artificial Viscosity (c): <= 0.01"
         cl_float c;
+        // Vorticity Confinement strength (k_vc)
+        cl_float k_vc;
 
         cl_float kBoundsDensity;
     };

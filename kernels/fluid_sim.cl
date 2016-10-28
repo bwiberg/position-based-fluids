@@ -23,6 +23,7 @@ typedef struct def_Fluid {
     float delta_q;
     uint n;
     float c;
+    float k_vc;
 
     float kBoundsDensity;
 } Fluid;
@@ -289,15 +290,82 @@ __kernel void recalc_velocities(__global const float3 *previousPositions,
     velocities[ID] = oneOverDt * (currentPositions[ID] - previousPositions[ID]);
 }
 
+__kernel void calc_curls(const Fluid            fluid,          // 0
+                         __global const uint    *binIDs,        // 1
+                         __global const uint    *binStartIDs,   // 2
+                         __global const uint    *binCounts,     // 3
+                         __global const float3  *positions,     // 4
+                         __global const float3  *velocities,    // 5
+                         __global float3        *curls) {       // 6
+    const float3 position = positions[ID];
+    const float3 velocity = velocities[ID];
+
+    const uint binID = binIDs[ID];
+    const int3 binID3D = convert_int3(getBinID_3D(binID));
+
+    /// Find all neighbours
+    uint neighbouringBinIDs[3 * 3 * 3];
+    uint neighbouringBinCount = 0;
+
+    uint nBinID;
+    uint nBinStartID;
+    uint nBinCount;
+
+    int x, y, z;
+    for (int dx = -1; dx < 2; ++dx) {
+        x = binID3D.x + dx;
+        if (x+1 == clamp(x+1, 1, binCountX)) {
+            for (int dy = -1; dy < 2; ++dy) {
+                y = binID3D.y + dy;
+                if (y+1 == clamp(y+1, 1, binCountY)) {
+                    for (int dz = -1; dz < 2; ++dz) {
+                        z = binID3D.z + dz;
+                        if  (z+1 == clamp(z+1, 1, binCountZ)) {
+                            nBinID = x + binCountX * y + binCountX * binCountY * z;
+                            neighbouringBinIDs[neighbouringBinCount] = nBinID;
+                            ++neighbouringBinCount;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Calculate particle curl
+    float4 curl = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    float3 u = ZERO3F;
+    float3 v = ZERO3F;
+
+    for (uint i = 0; i < neighbouringBinCount; ++i) {
+        uint nBinID = neighbouringBinIDs[i];
+
+        nBinStartID = binStartIDs[nBinID];
+        nBinCount = binCounts[nBinID];
+
+        for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
+            u = velocity - velocities[pID];
+            v = grad_Wspiky(position - positions[pID], fluid.kernelRadius);
+            curl += cross(float4(u.x, u.y, u.z, 0.0f), float4(v.x, v.y, v.z, 0.0f));
+        }
+    }
+
+    curls[ID] = float3(curl.x, curl.y, curl.z);
+}
+
 __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             // 0
                                       __global const uint    *binIDs,           // 1
                                       __global const uint    *binStartIDs,      // 2
                                       __global const uint    *binCounts,        // 3
                                       __global const float3  *positions,        // 4
-                                      __global const float3  *velocitiesIn,     // 5
-                                      __global float3        *velocitiesOut) {  // 6
-    const float3 position = positions[ID];
-    float3 velocity = velocitiesIn[ID];
+                                      __global const float   *densities,        // 5
+                                      __global const float3  *curls,            // 6
+                                      __global const float3  *velocitiesIn,     // 7
+                                      __global float3        *velocitiesOut) {  // 8
+
+    const float3 position   = positions[ID];
+    const float3 velocity   = velocitiesIn[ID];
+    const float density     = densities[ID];
+    const float3 curl       = curls[ID];
 
     const uint binID = binIDs[ID];
     const int3 binID3D = convert_int3(getBinID_3D(binID));
@@ -331,11 +399,7 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
     }
 
     /// Apply Vorticity confinement
-    
-
-
-    /// Apply XSPH viscosity smoothing
-    float3 sumWeightedNeighbourVelocities = ZERO3F;
+    float3 n = ZERO3F; //ŋ
 
     for (uint i = 0; i < neighbouringBinCount; ++i) {
         uint nBinID = neighbouringBinIDs[i];
@@ -344,17 +408,35 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
         nBinCount = binCounts[nBinID];
 
         for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
-            sumWeightedNeighbourVelocities = sumWeightedNeighbourVelocities
-                     + (velocity - velocitiesIn[pID]) * Wpoly6(position - positions[pID], fluid.kernelRadius);
+            n += (1 / (max(densities[pID], 100.0f))) * length(curls[pID]) * grad_Wspiky(position - positions[pID], fluid.kernelRadius);
         }
     }
 
-    if (ID == 0) {
-        printf("sum=[%f, %f, %f]\n", sumWeightedNeighbourVelocities.x, sumWeightedNeighbourVelocities.y, sumWeightedNeighbourVelocities.z);
-    }
+    float3 n_hat = n / length(n);
 
-    velocity = velocity + fluid.c * sumWeightedNeighbourVelocities;
-    velocitiesOut[ID] = velocity;
+    float4 f_vc = fluid.k_vc * cross(float4(n_hat.x, n_hat.y, n_hat.z, 0.0f),
+                                            float4(curl.x,  curl.y,  curl.z, 0.0f));
+
+    if (ID == 0) {
+        printf("f_vorticity=[%f, %f, %f]\n", f_vc.x, f_vc.y, f_vc.z);
+    }
+/// Apply XSPH viscosity smoothing
+//    float3 sumWeightedNeighbourVelocities = ZERO3F;
+//
+//    for (uint i = 0; i < neighbouringBinCount; ++i) {
+//        uint nBinID = neighbouringBinIDs[i];
+//
+//        nBinStartID = binStartIDs[nBinID];
+//        nBinCount = binCounts[nBinID];
+//
+//        for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
+//            sumWeightedNeighbourVelocities +=
+//                     (velocity - velocitiesIn[pID]) * Wpoly6(position - positions[pID], fluid.kernelRadius);
+//        }
+//    }
+//
+    /* + fluid.c * sumWeightedNeighbourVelocities*/
+    velocitiesOut[ID] = velocity + fluid.deltaTime * float3(f_vc.x, f_vc.y, f_vc.z);
 }
 
 __kernel void set_positions_from_predictions(__global const float3 *predictedPositions,

@@ -93,6 +93,7 @@ namespace pbf {
         std::unique_ptr<cl::Buffer> mBinCountCL; // CxCxC-sized uint buffer, containing particle count per cell
         std::unique_ptr<cl::Buffer> mBinStartIDCL;
         std::unique_ptr<cl::Buffer> mParticleInBinPosCL;
+        std::unique_ptr<cl::Buffer> mParticleCurlsCL;
 
         std::vector<cl::Memory> mMemObjects;
 
@@ -112,6 +113,7 @@ namespace pbf {
         std::unique_ptr<cl::Kernel> mCalcDeltaPositionAndDoUpdate;
 
         std::unique_ptr<cl::Kernel> mRecalcVelocities;
+        std::unique_ptr<cl::Kernel> mCalcCurls;
         std::unique_ptr<cl::Kernel> mApplyVortAndViscXSPH;
         std::unique_ptr<cl::Kernel> mSetPositionsFromPredictions;
 

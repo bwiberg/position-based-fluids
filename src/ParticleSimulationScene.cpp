@@ -135,6 +135,7 @@ namespace pbf {
             OCL_CHECK(mCalcLambdas = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_lambdas", CL_ERROR));
             OCL_CHECK(mCalcDeltaPositionAndDoUpdate = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_delta_pi_and_update", CL_ERROR));
             OCL_CHECK(mRecalcVelocities = make_unique<Kernel>(*mPositionAdjustmentProgram, "recalc_velocities", CL_ERROR));
+            OCL_CHECK(mCalcCurls = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_curls", CL_ERROR));
             OCL_CHECK(mApplyVortAndViscXSPH = make_unique<Kernel>(*mPositionAdjustmentProgram, "apply_vort_and_viscXSPH", CL_ERROR));
             OCL_CHECK(mSetPositionsFromPredictions = make_unique<Kernel>(*mPositionAdjustmentProgram, "set_positions_from_predictions", CL_ERROR));
         }
@@ -270,6 +271,7 @@ namespace pbf {
         gui->addVariable("delta_q", mFluidCL->delta_q);
         gui->addVariable("n", mFluidCL->n);
         gui->addVariable("c", mFluidCL->c);
+        gui->addVariable("k_vc", mFluidCL->k_vc);
         gui->addVariable("kBoundsDensity", mFluidCL->kBoundsDensity);
     }
 
@@ -358,6 +360,7 @@ namespace pbf {
         OCL_CHECK(mParticleBinIDCL[FIRST_BUFFER] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
         OCL_CHECK(mParticleBinIDCL[SECOND_BUFFER] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
         OCL_CHECK(mParticleLambdasCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_float) * MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleCurlsCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_float3) * MAX_PARTICLES, (void*)0, CL_ERROR));
 
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinStartIDCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
@@ -687,13 +690,25 @@ namespace pbf {
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mRecalcVelocities, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
+        OCL_CALL(mCalcCurls->setArg(0, sizeof(pbf::Fluid), mFluidCL.get()));
+        OCL_CALL(mCalcCurls->setArg(1, *mParticleBinIDCL[mCurrentBufferID]));
+        OCL_CALL(mCalcCurls->setArg(2, *mBinStartIDCL));
+        OCL_CALL(mCalcCurls->setArg(3, *mBinCountCL));
+        OCL_CALL(mCalcCurls->setArg(4, *mPredictedPositionsCL[mCurrentBufferID]));
+        OCL_CALL(mCalcCurls->setArg(5, *mVelocitiesCL[SECOND_BUFFER]));
+        OCL_CALL(mCalcCurls->setArg(6, *mParticleCurlsCL));
+        OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcCurls, cl::NullRange,
+                                             cl::NDRange(mNumParticles, 1), cl::NullRange));
+
         OCL_CALL(mApplyVortAndViscXSPH->setArg(0, sizeof(pbf::Fluid), mFluidCL.get()));
         OCL_CALL(mApplyVortAndViscXSPH->setArg(1, *mParticleBinIDCL[mCurrentBufferID]));
         OCL_CALL(mApplyVortAndViscXSPH->setArg(2, *mBinStartIDCL));
         OCL_CALL(mApplyVortAndViscXSPH->setArg(3, *mBinCountCL));
         OCL_CALL(mApplyVortAndViscXSPH->setArg(4, *mPredictedPositionsCL[mCurrentBufferID]));
-        OCL_CALL(mApplyVortAndViscXSPH->setArg(5, *mVelocitiesCL[SECOND_BUFFER]));
-        OCL_CALL(mApplyVortAndViscXSPH->setArg(6, *mVelocitiesCL[FIRST_BUFFER]));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(5, *mDensitiesCL));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(6, *mParticleCurlsCL));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(7, *mVelocitiesCL[SECOND_BUFFER]));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(8, *mVelocitiesCL[FIRST_BUFFER]));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mApplyVortAndViscXSPH, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
