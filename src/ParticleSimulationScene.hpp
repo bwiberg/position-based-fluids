@@ -72,12 +72,14 @@ namespace pbf {
         /// OpenGL particle buffers
         /// Double state buffers (pos and vel) are needed for the counting sort algorithm
         std::unique_ptr<bwgl::VertexBuffer> mPositionsGL[2];
+        std::unique_ptr<bwgl::VertexBuffer> mPredictedPositionsGL[2]; // unused in GL
         std::unique_ptr<bwgl::VertexBuffer> mVelocitiesGL[2];
         std::unique_ptr<bwgl::VertexBuffer> mDensitiesGL;
         std::unique_ptr<bwgl::VertexArray> mParticles[2];
 
         /// OpenCL particle buffers
         std::unique_ptr<cl::BufferGL> mPositionsCL[2];
+        std::unique_ptr<cl::BufferGL> mPredictedPositionsCL[2];
         std::unique_ptr<cl::BufferGL> mVelocitiesCL[2];
         std::unique_ptr<cl::BufferGL> mDensitiesCL;
         std::unique_ptr<cl::Buffer> mParticleBinIDCL[2];
@@ -108,6 +110,9 @@ namespace pbf {
         std::unique_ptr<cl::Kernel> mCalcDensities;
         std::unique_ptr<cl::Kernel> mCalcLambdas;
         std::unique_ptr<cl::Kernel> mCalcDeltaPositionAndDoUpdate;
+
+        std::unique_ptr<cl::Kernel> mRecalcVelocities;
+        std::unique_ptr<cl::Kernel> mSetPositionsFromPredictions;
 
         std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
 

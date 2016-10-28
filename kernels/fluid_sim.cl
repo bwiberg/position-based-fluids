@@ -305,6 +305,18 @@ __kernel void calc_delta_pi_and_update(const Fluid            fluid,          //
     positions[ID] = position + clamp(delta_pi, - MAX_DELTA_PI, MAX_DELTA_PI);
 }
 
+__kernel void recalc_velocities(__global const float3 *previousPositions,
+                                __global const float3 *currentPositions,
+                                __global float3       *velocities,
+                                const float           oneOverDt) {
+    velocities[ID] = oneOverDt * (currentPositions[ID] - previousPositions[ID]);
+}
+
+__kernel void set_positions_from_predictions(__global const float3 *predictedPositions,
+                                             __global float3       *positions) {
+    positions[ID] = predictedPositions[ID];
+}
+
 /// from http://stackoverflow.com/questions/14845084/how-do-i-convert-a-1d-index-into-a-3d-index?noredirect=1&lq=1
 inline uint3 getBinID_3D(uint binID) {
     uint3 binID3D;

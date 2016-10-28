@@ -28,12 +28,12 @@ inline uint getBinID(const uint3 binID_3D) {
     return binID_3D.x + binCountX * binID_3D.y + binCountX * binCountY * binID_3D.z;
 }
 
-__kernel void insert_particles(__global const float3    *positions,
+__kernel void insert_particles(__global const float3    *predictedPositions,
                                __global volatile uint   *particleBinID,
                                __global volatile uint   *particleInBinID,
                                __global volatile uint   *binCounts) {
     // Compute the bin ID of this particle
-    const uint binID = getBinID(getBinID_3D(positions[ID]));
+    const uint binID = getBinID(getBinID_3D(predictedPositions[ID]));
     particleBinID[ID] = binID;
 
     // Read the current count of particles in the bin and store in this particle's "within-bin-ID"
@@ -51,19 +51,24 @@ __kernel void compute_bin_start_ID(__global const uint  *binCounts,
     binStartID[ID] = count;
 }
 
-__kernel void reindex_particles(__global const uint     *particleBinIDsOld,     // 0
-                                __global const uint     *particleInBinID,       // 1
-                                __global const uint     *binStartID,            // 2
-                                __global const float3   *positionsOld,          // 3
+__kernel void reindex_particles(__global const uint     *particleInBinID,       // 0
+                                __global const uint     *binStartID,            // 1
+
+                                __global const float3   *previousPositionsOld,  // 2
+                                __global const float3   *predictedPositionsOld, // 3
                                 __global const float3   *velocitiesOld,         // 4
-                                __global float3         *positionsNew,          // 5
-                                __global float3         *velocitiesNew,         // 6
-                                __global uint           *particleBinIDsNew) {   // 7
+                                __global const uint     *particleBinIDsOld,     // 5
+
+                                __global float3         *previousPositionsNew,  // 6
+                                __global float3         *predictedPositionsNew, // 7
+                                __global float3         *velocitiesNew,         // 8
+                                __global uint           *particleBinIDsNew) {   // 9
 
     const uint idNew = binStartID[particleBinIDsOld[ID]] + particleInBinID[ID];
 
     // Copy particle state to new position
-    positionsNew[idNew] = positionsOld[ID];
+    previousPositionsNew[idNew] = previousPositionsOld[ID];
+    predictedPositionsNew[idNew] = predictedPositionsOld[ID];
     velocitiesNew[idNew] = velocitiesOld[ID];
     particleBinIDsNew[idNew] = particleBinIDsOld[ID];
 }

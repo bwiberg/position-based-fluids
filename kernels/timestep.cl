@@ -1,17 +1,15 @@
-__kernel void timestep(__global float3* positions,
-                       __global float3* velocities,
-                       const float dt) {
-    const uint id = get_global_id(0);
+#define ID get_global_id(0)
 
-    float3 velocity = velocities[id];
-    float3 position = positions[id];
+__kernel void timestep(__global const float3 *positions,          // 0
+                       __global float3       *predictedPositions, // 1
+                       __global const float3 *velocities,         // 2
+                       const float           dt) {                // 3
+    float3 velocity = velocities[ID];
+    velocity.y = velocity.y - dt * 9.82f;
 
-    velocity.y -= dt * 9.82f;
+    predictedPositions[ID] = positions[ID] + dt * velocity;
 
-    position.x += dt * velocity.x;
-    position.y += dt * velocity.y;
-    position.z += dt * velocity.z;
-
-    velocities[id] = velocity;
-    positions[id] = position;
+    if (ID == 0) {
+        printf("velocity=[%f, %f, %f]\n\n", velocity.x, velocity.y, velocity.z);
+    }
 }
