@@ -8,8 +8,4 @@ __kernel void timestep(__global const float3 *positions,          // 0
     velocity.y = velocity.y - dt * 9.82f;
 
     predictedPositions[ID] = positions[ID] + dt * velocity;
-
-    if (ID == 0) {
-        printf("velocity=[%f, %f, %f]\n\n", velocity.x, velocity.y, velocity.z);
-    }
 }

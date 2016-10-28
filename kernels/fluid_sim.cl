@@ -6,7 +6,7 @@
 /// NO_EDGE_CLAMP
 
 //#define USE_FAST_SQRT
-#define ONE_OVER_SQRT_OF_3 0.577350
+#define ONE_OVER_SQRT_OF_3 0.577350f
 #define ZERO3F float3(0.0f, 0.0f, 0.0f)
 #define EPSILON 0.0001f
 #define PI 3.1415926535f
@@ -287,6 +287,74 @@ __kernel void recalc_velocities(__global const float3 *previousPositions,
                                 __global float3       *velocities,
                                 const float           oneOverDt) {
     velocities[ID] = oneOverDt * (currentPositions[ID] - previousPositions[ID]);
+}
+
+__kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             // 0
+                                      __global const uint    *binIDs,           // 1
+                                      __global const uint    *binStartIDs,      // 2
+                                      __global const uint    *binCounts,        // 3
+                                      __global const float3  *positions,        // 4
+                                      __global const float3  *velocitiesIn,     // 5
+                                      __global float3        *velocitiesOut) {  // 6
+    const float3 position = positions[ID];
+    float3 velocity = velocitiesIn[ID];
+
+    const uint binID = binIDs[ID];
+    const int3 binID3D = convert_int3(getBinID_3D(binID));
+
+    /// Find all neighbours
+    uint neighbouringBinIDs[3 * 3 * 3];
+    uint neighbouringBinCount = 0;
+
+    uint nBinID;
+    uint nBinStartID;
+    uint nBinCount;
+
+    int x, y, z;
+    for (int dx = -1; dx < 2; ++dx) {
+        x = binID3D.x + dx;
+        if (x+1 == clamp(x+1, 1, binCountX)) {
+            for (int dy = -1; dy < 2; ++dy) {
+                y = binID3D.y + dy;
+                if (y+1 == clamp(y+1, 1, binCountY)) {
+                    for (int dz = -1; dz < 2; ++dz) {
+                        z = binID3D.z + dz;
+                        if  (z+1 == clamp(z+1, 1, binCountZ)) {
+                            nBinID = x + binCountX * y + binCountX * binCountY * z;
+                            neighbouringBinIDs[neighbouringBinCount] = nBinID;
+                            ++neighbouringBinCount;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Apply Vorticity confinement
+    
+
+
+    /// Apply XSPH viscosity smoothing
+    float3 sumWeightedNeighbourVelocities = ZERO3F;
+
+    for (uint i = 0; i < neighbouringBinCount; ++i) {
+        uint nBinID = neighbouringBinIDs[i];
+
+        nBinStartID = binStartIDs[nBinID];
+        nBinCount = binCounts[nBinID];
+
+        for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
+            sumWeightedNeighbourVelocities = sumWeightedNeighbourVelocities
+                     + (velocity - velocitiesIn[pID]) * Wpoly6(position - positions[pID], fluid.kernelRadius);
+        }
+    }
+
+    if (ID == 0) {
+        printf("sum=[%f, %f, %f]\n", sumWeightedNeighbourVelocities.x, sumWeightedNeighbourVelocities.y, sumWeightedNeighbourVelocities.z);
+    }
+
+    velocity = velocity + fluid.c * sumWeightedNeighbourVelocities;
+    velocitiesOut[ID] = velocity;
 }
 
 __kernel void set_positions_from_predictions(__global const float3 *predictedPositions,

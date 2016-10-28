@@ -12,6 +12,9 @@
 
 #include <iomanip>
 
+#define FIRST_BUFFER 0
+#define SECOND_BUFFER 1
+
 namespace pbf {
     using util::make_unique;
     using namespace bwgl;
@@ -69,29 +72,29 @@ namespace pbf {
 
 
         /// Setup particle attributes as OpenGL buffers
-        mPositionsGL[0] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mPositionsGL[1] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mVelocitiesGL[0] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mVelocitiesGL[1] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mPositionsGL[FIRST_BUFFER] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mPositionsGL[SECOND_BUFFER] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mVelocitiesGL[FIRST_BUFFER] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mVelocitiesGL[SECOND_BUFFER] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
         mDensitiesGL = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mPredictedPositionsGL[0] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
-        mPredictedPositionsGL[1] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mPredictedPositionsGL[FIRST_BUFFER] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
+        mPredictedPositionsGL[SECOND_BUFFER] = make_unique<VertexBuffer>(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW);
 
 
         /// Create OpenGL vertex array, representing each particle
-        mParticles[0] = make_unique<VertexArray>();
-        mParticles[0]->bind();
-        mParticles[0]->addVertexAttribute(*mPositionsGL[0], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
-        mParticles[0]->addVertexAttribute(*mVelocitiesGL[0], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
-        mParticles[0]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
-        mParticles[0]->unbind();
+        mParticles[FIRST_BUFFER] = make_unique<VertexArray>();
+        mParticles[FIRST_BUFFER]->bind();
+        mParticles[FIRST_BUFFER]->addVertexAttribute(*mPositionsGL[FIRST_BUFFER], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
+        mParticles[FIRST_BUFFER]->addVertexAttribute(*mVelocitiesGL[FIRST_BUFFER], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
+        mParticles[FIRST_BUFFER]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
+        mParticles[FIRST_BUFFER]->unbind();
 
-        mParticles[1] = make_unique<VertexArray>();
-        mParticles[1]->bind();
-        mParticles[1]->addVertexAttribute(*mPositionsGL[1], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
-        mParticles[1]->addVertexAttribute(*mVelocitiesGL[1], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
-        mParticles[1]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
-        mParticles[1]->unbind();
+        mParticles[SECOND_BUFFER] = make_unique<VertexArray>();
+        mParticles[SECOND_BUFFER]->bind();
+        mParticles[SECOND_BUFFER]->addVertexAttribute(*mPositionsGL[SECOND_BUFFER], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
+        mParticles[SECOND_BUFFER]->addVertexAttribute(*mVelocitiesGL[FIRST_BUFFER], 4, GL_FLOAT, GL_FALSE, /*3*sizeof(GLfloat)*/ 0);
+        mParticles[SECOND_BUFFER]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
+        mParticles[SECOND_BUFFER]->unbind();
 
         /// Setup counting sort kernels
         std::string kernelSource = "";
@@ -132,6 +135,7 @@ namespace pbf {
             OCL_CHECK(mCalcLambdas = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_lambdas", CL_ERROR));
             OCL_CHECK(mCalcDeltaPositionAndDoUpdate = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_delta_pi_and_update", CL_ERROR));
             OCL_CHECK(mRecalcVelocities = make_unique<Kernel>(*mPositionAdjustmentProgram, "recalc_velocities", CL_ERROR));
+            OCL_CHECK(mApplyVortAndViscXSPH = make_unique<Kernel>(*mPositionAdjustmentProgram, "apply_vort_and_viscXSPH", CL_ERROR));
             OCL_CHECK(mSetPositionsFromPredictions = make_unique<Kernel>(*mPositionAdjustmentProgram, "set_positions_from_predictions", CL_ERROR));
         }
 
@@ -299,29 +303,29 @@ namespace pbf {
                                                            std::vector<float> &&densities) {
         const unsigned int MAX_PARTICLES = positions.size();
 
-        mPositionsGL[0]->bind();
-        mPositionsGL[0]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
-        mPositionsGL[0]->unbind();
+        mPositionsGL[FIRST_BUFFER]->bind();
+        mPositionsGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPositionsGL[FIRST_BUFFER]->unbind();
 
-        mVelocitiesGL[0]->bind();
-        mVelocitiesGL[0]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
-        mVelocitiesGL[0]->unbind();
+        mVelocitiesGL[FIRST_BUFFER]->bind();
+        mVelocitiesGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
+        mVelocitiesGL[FIRST_BUFFER]->unbind();
 
-        mPositionsGL[1]->bind();
-        mPositionsGL[1]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
-        mPositionsGL[1]->unbind();
+        mPositionsGL[SECOND_BUFFER]->bind();
+        mPositionsGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPositionsGL[SECOND_BUFFER]->unbind();
 
-        mVelocitiesGL[1]->bind();
-        mVelocitiesGL[1]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
-        mVelocitiesGL[1]->unbind();
+        mVelocitiesGL[SECOND_BUFFER]->bind();
+        mVelocitiesGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
+        mVelocitiesGL[SECOND_BUFFER]->unbind();
 
-        mPredictedPositionsGL[0]->bind();
-        mPredictedPositionsGL[0]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
-        mPredictedPositionsGL[0]->unbind();
+        mPredictedPositionsGL[FIRST_BUFFER]->bind();
+        mPredictedPositionsGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPredictedPositionsGL[FIRST_BUFFER]->unbind();
 
-        mPredictedPositionsGL[1]->bind();
-        mPredictedPositionsGL[1]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
-        mPredictedPositionsGL[1]->unbind();
+        mPredictedPositionsGL[SECOND_BUFFER]->bind();
+        mPredictedPositionsGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPredictedPositionsGL[SECOND_BUFFER]->unbind();
 
         mDensitiesGL->bind();
         mDensitiesGL->bufferData(sizeof(float) * MAX_PARTICLES, &densities[0]);
@@ -329,20 +333,20 @@ namespace pbf {
 
         /// Create OpenCL references to OpenGL buffers
         OCL_ERROR;
-        OCL_CHECK(mPositionsCL[0] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL[0]->ID(), CL_ERROR));
-        mMemObjects.push_back(*mPositionsCL[0]);
-        OCL_CHECK(mPositionsCL[1] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL[1]->ID(), CL_ERROR));
-        mMemObjects.push_back(*mPositionsCL[1]);
+        OCL_CHECK(mPositionsCL[FIRST_BUFFER] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL[FIRST_BUFFER]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mPositionsCL[FIRST_BUFFER]);
+        OCL_CHECK(mPositionsCL[SECOND_BUFFER] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPositionsGL[SECOND_BUFFER]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mPositionsCL[SECOND_BUFFER]);
 
-        OCL_CHECK(mVelocitiesCL[0] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL[0]->ID(), CL_ERROR));
-        mMemObjects.push_back(*mVelocitiesCL[0]);
-        OCL_CHECK(mVelocitiesCL[1] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL[1]->ID(), CL_ERROR));
-        mMemObjects.push_back(*mVelocitiesCL[1]);
+        OCL_CHECK(mVelocitiesCL[FIRST_BUFFER] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL[FIRST_BUFFER]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mVelocitiesCL[FIRST_BUFFER]);
+        OCL_CHECK(mVelocitiesCL[SECOND_BUFFER] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mVelocitiesGL[SECOND_BUFFER]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mVelocitiesCL[SECOND_BUFFER]);
 
-        OCL_CHECK(mPredictedPositionsCL[0] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPredictedPositionsGL[0]->ID(), CL_ERROR));
-        mMemObjects.push_back(*mPredictedPositionsCL[0]);
-        OCL_CHECK(mPredictedPositionsCL[1] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPredictedPositionsGL[1]->ID(), CL_ERROR));
-        mMemObjects.push_back(*mPredictedPositionsCL[1]);
+        OCL_CHECK(mPredictedPositionsCL[FIRST_BUFFER] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPredictedPositionsGL[FIRST_BUFFER]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mPredictedPositionsCL[FIRST_BUFFER]);
+        OCL_CHECK(mPredictedPositionsCL[SECOND_BUFFER] = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mPredictedPositionsGL[SECOND_BUFFER]->ID(), CL_ERROR));
+        mMemObjects.push_back(*mPredictedPositionsCL[SECOND_BUFFER]);
 
         OCL_CHECK(mDensitiesCL = make_unique<BufferGL>(mContext, CL_MEM_READ_WRITE, mDensitiesGL->ID(), CL_ERROR));
         mMemObjects.push_back(*mDensitiesCL);
@@ -351,15 +355,15 @@ namespace pbf {
         OCL_CHECK(mBinCountCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * mGridCL->binCount, (void*)0, CL_ERROR));
         OCL_CHECK(mBinStartIDCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * mGridCL->binCount, (void*)0, CL_ERROR));
         OCL_CHECK(mParticleInBinPosCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
-        OCL_CHECK(mParticleBinIDCL[0] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
-        OCL_CHECK(mParticleBinIDCL[1] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleBinIDCL[FIRST_BUFFER] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleBinIDCL[SECOND_BUFFER] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
         OCL_CHECK(mParticleLambdasCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_float) * MAX_PARTICLES, (void*)0, CL_ERROR));
 
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinStartIDCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleInBinPosCL, 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
-        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[0], 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
-        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[1], 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[FIRST_BUFFER], 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[SECOND_BUFFER], 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
 
         /// Set these arguments of the kernel since they don't flip their buffers
         OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
@@ -461,7 +465,7 @@ namespace pbf {
 
         OCL_CALL(mTimestepKernel->setArg(0, *mPositionsCL[previousBufferID]));
         OCL_CALL(mTimestepKernel->setArg(1, *mPredictedPositionsCL[previousBufferID]));
-        OCL_CALL(mTimestepKernel->setArg(2, *mVelocitiesCL[previousBufferID]));
+        OCL_CALL(mTimestepKernel->setArg(2, *mVelocitiesCL[FIRST_BUFFER]));
         OCL_CALL(mTimestepKernel->setArg(3, mFluidCL->deltaTime));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mTimestepKernel, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
@@ -553,11 +557,11 @@ namespace pbf {
         OCL_CALL(mSortReindexParticles->setArg(1, *mBinStartIDCL));
         OCL_CALL(mSortReindexParticles->setArg(2, *mPositionsCL[previousBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(3, *mPredictedPositionsCL[previousBufferID]));
-        OCL_CALL(mSortReindexParticles->setArg(4, *mVelocitiesCL[previousBufferID]));
+        OCL_CALL(mSortReindexParticles->setArg(4, *mVelocitiesCL[FIRST_BUFFER]));
         OCL_CALL(mSortReindexParticles->setArg(5, *mParticleBinIDCL[previousBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(6, *mPositionsCL[mCurrentBufferID]));
         OCL_CALL(mSortReindexParticles->setArg(7, *mPredictedPositionsCL[mCurrentBufferID]));
-        OCL_CALL(mSortReindexParticles->setArg(8, *mVelocitiesCL[mCurrentBufferID]));
+        OCL_CALL(mSortReindexParticles->setArg(8, *mVelocitiesCL[SECOND_BUFFER]));
         OCL_CALL(mSortReindexParticles->setArg(9, *mParticleBinIDCL[mCurrentBufferID]));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortReindexParticles, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
@@ -678,9 +682,19 @@ namespace pbf {
 
         OCL_CALL(mRecalcVelocities->setArg(0, *mPositionsCL[mCurrentBufferID]));
         OCL_CALL(mRecalcVelocities->setArg(1, *mPredictedPositionsCL[mCurrentBufferID]));
-        OCL_CALL(mRecalcVelocities->setArg(2, *mVelocitiesCL[mCurrentBufferID]));
+        OCL_CALL(mRecalcVelocities->setArg(2, *mVelocitiesCL[SECOND_BUFFER]));
         OCL_CALL(mRecalcVelocities->setArg(3, 1.0f / mFluidCL->deltaTime));
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mRecalcVelocities, cl::NullRange,
+                                             cl::NDRange(mNumParticles, 1), cl::NullRange));
+
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(0, sizeof(pbf::Fluid), mFluidCL.get()));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(1, *mParticleBinIDCL[mCurrentBufferID]));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(2, *mBinStartIDCL));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(3, *mBinCountCL));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(4, *mPredictedPositionsCL[mCurrentBufferID]));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(5, *mVelocitiesCL[SECOND_BUFFER]));
+        OCL_CALL(mApplyVortAndViscXSPH->setArg(6, *mVelocitiesCL[FIRST_BUFFER]));
+        OCL_CALL(mQueue.enqueueNDRangeKernel(*mApplyVortAndViscXSPH, cl::NullRange,
                                              cl::NDRange(mNumParticles, 1), cl::NullRange));
 
         OCL_CALL(mSetPositionsFromPredictions->setArg(0, *mPredictedPositionsCL[mCurrentBufferID]));

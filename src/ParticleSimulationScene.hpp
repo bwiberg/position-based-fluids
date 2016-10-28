@@ -112,6 +112,7 @@ namespace pbf {
         std::unique_ptr<cl::Kernel> mCalcDeltaPositionAndDoUpdate;
 
         std::unique_ptr<cl::Kernel> mRecalcVelocities;
+        std::unique_ptr<cl::Kernel> mApplyVortAndViscXSPH;
         std::unique_ptr<cl::Kernel> mSetPositionsFromPredictions;
 
         std::unique_ptr<cl::Kernel> mClipToBoundsKernel;
