@@ -8,6 +8,10 @@ namespace pbf {
     struct Fluid {
         static std::unique_ptr<Fluid> GetDefault();
 
+        static void ReadFromFile(const std::string &filename, Fluid &fluid);
+
+        static void WriteToFile(const std::string &filename, const Fluid &fluid);
+
         // Particle mass: 1.0kg
         // Kernel radius (h): 0.1m
         cl_float kernelRadius;

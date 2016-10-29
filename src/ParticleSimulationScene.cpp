@@ -262,6 +262,18 @@ namespace pbf {
 
         FormHelper *gui = new FormHelper(screen);
         gui->addWindow(Eigen::Vector2i(300, 125), "Fluid parameters");
+
+        gui->addButton("Load", [&, gui] {
+            std::string filename = file_dialog({ {"txt", "Text file"}, {"txt", "Text file"} }, false);
+            pbf::Fluid::ReadFromFile(filename, *mFluidCL);
+            gui->refresh();
+        });
+        gui->addButton("Save", [&, gui] {
+            std::string filename = file_dialog({ {"txt", "Text file"}, {"txt", "Text file"} }, true);
+            pbf::Fluid::WriteToFile(filename, *mFluidCL);
+            gui->refresh();
+        });
+
         gui->addVariable("Sub-steps", mNumSolverIterations);
         gui->addVariable("kernelRadius", mFluidCL->kernelRadius);
         gui->addVariable("restDensity", mFluidCL->restDensity);
