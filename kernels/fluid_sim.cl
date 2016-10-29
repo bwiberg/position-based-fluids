@@ -412,13 +412,16 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
         }
     }
 
-    float3 n_hat = n / length(n);
+    float3 n_hat = ZERO3F;
+    if (fabs(n.x) > EPSILON && fabs(n.y) > EPSILON && fabs(n.z) > EPSILON) {
+        n_hat = n / length(n);
+    }
 
     float4 f_vc = fluid.k_vc * cross(float4(n_hat.x, n_hat.y, n_hat.z, 0.0f),
                                             float4(curl.x,  curl.y,  curl.z, 0.0f));
 
     if (ID == 0) {
-        printf("f_vorticity=[%f, %f, %f]\n", f_vc.x, f_vc.y, f_vc.z);
+        printf("curl=[%f, %f, %f], n=[%f, %f, %f], f_vc=[%f, %f, %f]\n", curl.x, curl.y, curl.z, n.x, n.y, n.z, f_vc.x, f_vc.y, f_vc.z);
     }
 /// Apply XSPH viscosity smoothing
 //    float3 sumWeightedNeighbourVelocities = ZERO3F;
