@@ -16,6 +16,7 @@
 
 typedef struct def_Fluid {
     float kernelRadius;
+    uint numSubSteps;
     float restDensity;
     float deltaTime;
     float epsilon;

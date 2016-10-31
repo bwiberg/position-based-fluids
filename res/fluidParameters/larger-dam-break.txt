@@ -1,4 +1,5 @@
 kernelRadius   0.15
+numSubSteps    2
 restDensity    6378
 deltaTime      0.0083
 epsilon        600

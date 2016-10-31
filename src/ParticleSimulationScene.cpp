@@ -205,7 +205,7 @@ namespace pbf {
             gui->refresh();
         });
 
-        gui->addVariable("Sub-steps", mNumSolverIterations);
+        gui->addVariable("Sub-steps", mFluidCL->numSubSteps);
         gui->addVariable("kernelRadius", mFluidCL->kernelRadius);
         gui->addVariable("restDensity", mFluidCL->restDensity);
         gui->addVariable("deltaTime", mFluidCL->deltaTime);
@@ -489,7 +489,7 @@ namespace pbf {
         /// Reset densities to zero
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mDensitiesCL, 0, 0, sizeof(cl_float) * mNumParticles));
 
-        for (unsigned int i = 0; i < mNumSolverIterations; ++i) {
+        for (unsigned int i = 0; i < mFluidCL->numSubSteps; ++i) {
             ////////////////////
             /// Calculate λi ///
             ////////////////////

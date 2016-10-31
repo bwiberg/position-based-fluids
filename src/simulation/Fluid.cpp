@@ -8,6 +8,7 @@ namespace pbf {
         std::unique_ptr<Fluid> fluid = util::make_unique<Fluid>();
 
         fluid->kernelRadius = 0.1f;
+        fluid->numSubSteps = 1;
         fluid->restDensity  = 6378.0f;
         fluid->deltaTime    = 0.0083f;
         fluid->epsilon      = 600.0f;
@@ -31,6 +32,7 @@ namespace pbf {
                 ifs >> param;
 
                 if (param == "kernelRadius") ifs >> fluid.kernelRadius;
+                if (param == "numSubSteps") ifs >> fluid.numSubSteps;
                 if (param == "restDensity") ifs >> fluid.restDensity;
                 if (param == "deltaTime") ifs >> fluid.deltaTime;
                 if (param == "epsilon") ifs >> fluid.epsilon;
@@ -52,6 +54,7 @@ namespace pbf {
         std::string param;
         if (ofs.is_open()) {
             ofs << std::left << std::setw(15) << "kernelRadius " <<  fluid.kernelRadius << std::endl;
+            ofs << std::left << std::setw(15) << "numSubSteps " <<  fluid.numSubSteps << std::endl;
             ofs << std::left << std::setw(15) << "restDensity " <<  fluid.restDensity << std::endl;
             ofs << std::left << std::setw(15) << "deltaTime " <<  fluid.deltaTime << std::endl;
             ofs << std::left << std::setw(15) << "epsilon " <<  fluid.epsilon << std::endl;

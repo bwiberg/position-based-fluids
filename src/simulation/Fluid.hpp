@@ -15,6 +15,8 @@ namespace pbf {
         // Particle mass: 1.0kg
         // Kernel radius (h): 0.1m
         cl_float kernelRadius;
+
+        cl_uint numSubSteps;
         // Rest density (rho): 6378.0kg/m^2
         cl_float restDensity;
         // Density Iterations: 4

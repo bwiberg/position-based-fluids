@@ -67,8 +67,6 @@ namespace pbf {
 
         float mParticleRadius;
 
-        unsigned int mNumSolverIterations;
-
         std::shared_ptr<clgl::BaseShader> mParticlesShader;
         std::shared_ptr<clgl::BaseShader> mBoxShader;
 
