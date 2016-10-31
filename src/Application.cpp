@@ -8,6 +8,15 @@
 #include <CGLCurrent.h>
 #endif
 
+#include <lodepng/lodepng.h>
+#include "util/paths.hpp"
+#include <fstream>
+#include <iomanip>
+
+#ifdef TARGET_OS_MAC
+#include <CGLCurrent.h>
+#endif
+
 namespace clgl {
     std::map<std::string, Application::SceneCreator> Application::SceneCreators;
 
@@ -199,6 +208,13 @@ namespace clgl {
             if (this->mScene) { mScene->reset(); }
         });
 
+        Button *record = new Button(tools, "", ENTYPO_ICON_RECORD);
+        record->setFlags(Button::Flags::ToggleButton);
+        record->setFixedSize(toolSize);
+        record->setChangeCallback([=] (bool shouldRecord){
+            this->toggleRecording(shouldRecord);
+        });
+
         PopupButton *load = new PopupButton(tools, "LOAD");
         load->setFixedSize(toolSize);
         load->setCallback([=] {
@@ -242,6 +258,38 @@ namespace clgl {
         return 0;
     }
 
+    void Application::toggleRecording(bool shouldRecord) {
+        mIsRecording = shouldRecord;
+    }
+
+    void Application::recordFrame() {
+        std::stringstream ss;
+        ss << std::setw(4) << std::setfill('0') << mNextFrameNumber++ << ".png";
+        const std::string framename = OUTPUTPATH(ss.str());
+
+        std::ofstream fs(framename);
+        std::cout << framename << std::endl;
+
+        const uint width  = static_cast<uint>(mScreen->width());
+        const uint height = static_cast<uint>(mScreen->height());
+
+        std::vector<GLubyte> pixels;
+        pixels.resize(3 * width * height);
+
+        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+
+        std::vector<unsigned char> image(pixels.begin(), pixels.end());
+
+        //Encode the image
+        unsigned error = lodepng::encode(framename,
+                                         image,
+                                         width, height,
+                                         LCT_RGB, 8);
+
+        //if there's an error, display it
+        if(error) std::cout << "encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
+    }
+
     Application::Screen::Screen(Application &app,
                                 const Eigen::Vector2i &size, const std::string &caption, bool resizable,
                                 bool fullscreen, int colorBits, int alphaBits, int depthBits, int stencilBits,
@@ -254,14 +302,28 @@ namespace clgl {
                                                                 nSamples,
                                                                 4, 1), mApp(app) {}
 
-    void Application::Screen::drawContents() {
-        if (!mApp.mScene) return;
+    void Application::Screen::drawAll() {
+        glClearColor(mBackground[0], mBackground[1], mBackground[2], mBackground[3]);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-        if (mApp.mSceneIsPlaying) {
-            mApp.mScene->update();
+        drawContents();
+        drawWidgets();
+
+        if (mApp.mSceneIsPlaying && mApp.mIsRecording) {
+            mApp.recordFrame();
         }
 
-        mApp.mScene->render();
+        glfwSwapBuffers(mGLFWWindow);
+    }
+
+    void Application::Screen::drawContents() {
+        if (mApp.mScene) {
+            if (mApp.mSceneIsPlaying) {
+                mApp.mScene->update();
+            }
+
+            mApp.mScene->render();
+        }
     }
 
     bool Application::Screen::keyboardEvent(int key, int scancode, int action, int modifiers) {

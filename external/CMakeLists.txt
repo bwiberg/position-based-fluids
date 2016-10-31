@@ -36,7 +36,7 @@ if (${GLM_FOUND})
     message(STATUS "GLM found.")
 else (${GLM_FOUND})
     message(FATAL_ERROR "GLM not found.")
-endif(${GLM_FOUND})
+endif (${GLM_FOUND})
 
 #### ############## ####
 #### #### BWGL #### ####
@@ -46,13 +46,26 @@ message(WARNING ${BWGL_EXTRA_INCLUDE_DIRS})
 
 #### Khronos C++ OpenCL Wrapper API ####
 
+#### ################# ####
+#### #### LodePNG #### ####
+#### ################# ####
+set(LODEPNG_SOURCE_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/lodepng/lodepng.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/lodepng/lodepng_util.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/lodepng/pngdetail.cpp)
+set(LODEPNG_HEADER_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/lodepng/lodepng.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/lodepng/lodepng_util.h)
+add_library(lodepng STATIC ${LODEPNG_SOURCE_FILES} ${LODEPNG_HEADER_FILES})
+
 
 #### Export libraries and header search paths to CMake parent scope ####
 set(EXTERNAL_LIBRARIES
         ${OpenCL_LIBRARIES}
         ${OPENGL_LIBRARIES}
         nanogui
-        bwgl)
+        bwgl
+        lodepng)
 
 set(EXTERNAL_INCLUDE_DIRS
         ${OpenCL_INCLUDE_DIRS}
