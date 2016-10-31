@@ -4,3 +4,6 @@
 [submodule "external/bwgl"]
 	path = external/bwgl
 	url = https://github.com/bwiberg/bwgl.git
+[submodule "external/lodepng"]
+	path = external/lodepng
+	url = https://github.com/lvandeve/lodepng.git
