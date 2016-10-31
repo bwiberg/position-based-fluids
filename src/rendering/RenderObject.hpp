@@ -13,10 +13,16 @@ namespace clgl {
 
         virtual void render(const glm::mat4 &viewProjection) = 0;
 
+        void setShader(std::shared_ptr<BaseShader> shader);
+
     protected:
         std::shared_ptr<BaseShader> mShader;
     };
 
     inline RenderObject::RenderObject(std::shared_ptr<BaseShader> shader)
             : mShader(shader) {}
+
+    inline void RenderObject::setShader(std::shared_ptr<BaseShader> shader) {
+        mShader = shader;
+    }
 }

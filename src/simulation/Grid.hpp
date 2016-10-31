@@ -11,7 +11,7 @@ namespace pbf {
         cl_uint binCount;
     };
 
-    inline std::string getDefinesCL(const Grid &grid) {
+    inline std::string GetDefinesCL(const Grid &grid) {
         using std::to_string;
 
         const std::string args[16] = {
@@ -25,6 +25,6 @@ namespace pbf {
                 "binCount",         to_string(grid.binCount)
         };
 
-        return util::convertToCLDefines(8, args);
+        return util::ConvertToCLDefines(8, args);
     }
 }

@@ -24,17 +24,7 @@ namespace pbf {
             : BaseScene(context, device, queue) {
         mParticleRadius = 2.0f;
 
-        /// Create shaders
-        mParticlesShader = std::make_shared<clgl::BaseShader>(
-                std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("particles.vert")},
-                                                        {GL_FRAGMENT_SHADER, SHADERPATH("particles.frag")}});
-        mParticlesShader->compile();
-
-        mBoxShader = std::make_shared<clgl::BaseShader>(
-                std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("box.vert")},
-                                                        {GL_FRAGMENT_SHADER, SHADERPATH("box.frag")}});
-        mBoxShader->compile();
-
+        loadShaders();
 
         /// Create camera
         mCameraRotator = std::make_shared<clgl::SceneObject>();
@@ -96,79 +86,7 @@ namespace pbf {
         mParticles[SECOND_BUFFER]->addVertexAttribute(*mDensitiesGL, 1, GL_FLOAT, GL_FALSE, /*sizeof(GLfloat)*/ 0);
         mParticles[SECOND_BUFFER]->unbind();
 
-        /// Setup counting sort kernels
-        std::string kernelSource = "";
-        if (TryReadFromFile(KERNELPATH("counting_sort.cl"), kernelSource)) {
-            OCL_ERROR;
-            std::stringstream ss;
-            std::string defines = pbf::getDefinesCL(*mGridCL);
-            ss << std::endl << defines << std::endl << kernelSource;
-            kernelSource = ss.str();
-            OCL_CHECK(mCountingSortProgram = make_unique<Program>(mContext, kernelSource, true, CL_ERROR));
-            if (*CL_ERROR == CL_BUILD_PROGRAM_FAILURE) {
-                std::cerr << "Error building: "
-                          << mCountingSortProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
-                          << std::endl;
-            }
-
-            OCL_CHECK(mSortInsertParticles = make_unique<Kernel>(*mCountingSortProgram, "insert_particles", CL_ERROR));
-            OCL_CHECK(mSortComputeBinStartID = make_unique<Kernel>(*mCountingSortProgram, "compute_bin_start_ID", CL_ERROR));
-            OCL_CHECK(mSortReindexParticles = make_unique<Kernel>(*mCountingSortProgram, "reindex_particles", CL_ERROR));
-        }
-
-        /// Setup position adjustment kernels
-        kernelSource = "";
-        if (TryReadFromFile(KERNELPATH("fluid_sim.cl"), kernelSource)) {
-            OCL_ERROR;
-            std::stringstream ss;
-            std::string defines = pbf::getDefinesCL(*mGridCL);
-            ss << std::endl << defines << std::endl << kernelSource;
-            kernelSource = ss.str();
-            OCL_CHECK(mPositionAdjustmentProgram = make_unique<Program>(mContext, kernelSource, true, CL_ERROR));
-            if (*CL_ERROR == CL_BUILD_PROGRAM_FAILURE) {
-                std::cerr << "Error building: "
-                          << mPositionAdjustmentProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
-                          << std::endl;
-            }
-
-            OCL_CHECK(mCalcDensities = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_densities", CL_ERROR));
-            OCL_CHECK(mCalcLambdas = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_lambdas", CL_ERROR));
-            OCL_CHECK(mCalcDeltaPositionAndDoUpdate = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_delta_pi_and_update", CL_ERROR));
-            OCL_CHECK(mRecalcVelocities = make_unique<Kernel>(*mPositionAdjustmentProgram, "recalc_velocities", CL_ERROR));
-            OCL_CHECK(mCalcCurls = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_curls", CL_ERROR));
-            OCL_CHECK(mApplyVortAndViscXSPH = make_unique<Kernel>(*mPositionAdjustmentProgram, "apply_vort_and_viscXSPH", CL_ERROR));
-            OCL_CHECK(mSetPositionsFromPredictions = make_unique<Kernel>(*mPositionAdjustmentProgram, "set_positions_from_predictions", CL_ERROR));
-        }
-
-        /// Setup timestep kernel
-        kernelSource = "";
-        if (TryReadFromFile(KERNELPATH("timestep.cl"), kernelSource)) {
-            OCL_ERROR;
-            OCL_CHECK(mTimestepProgram = make_unique<Program>(mContext, kernelSource, true, CL_ERROR));
-            if (*CL_ERROR == CL_BUILD_PROGRAM_FAILURE) {
-                std::cerr << "Error building: "
-                          << mTimestepProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
-                          << std::endl;
-            }
-
-            OCL_CHECK(mTimestepKernel = make_unique<Kernel>(*mTimestepProgram, "timestep", CL_ERROR));
-        }
-
-        /// Setup "clip to bounds"-kernel
-        kernelSource = "";
-        if (TryReadFromFile(KERNELPATH("clip_to_bounds.cl"), kernelSource)) {
-            OCL_ERROR;
-            OCL_CHECK(mClipToBoundsProgram = make_unique<Program>(mContext, kernelSource, true, CL_ERROR));
-            if (*CL_ERROR == CL_BUILD_PROGRAM_FAILURE) {
-                std::cerr << "Error building: "
-                          << mClipToBoundsProgram->getBuildInfo<CL_PROGRAM_BUILD_LOG>(mDevice)
-                          << std::endl;
-            }
-
-            OCL_CHECK(mClipToBoundsKernel = make_unique<Kernel>(*mClipToBoundsProgram, "clip_to_bounds", CL_ERROR));
-        }
-
-        OCL_CALL(mClipToBoundsKernel->setArg(1, sizeof(pbf::Bounds), mBoundsCL.get()));
+        loadKernels();
     }
 
     void ParticleSimulationScene::addGUI(nanogui::Screen *screen) {
@@ -182,10 +100,19 @@ namespace pbf {
         win->setPosition(Eigen::Vector2i(15, 125));
         win->setLayout(new GroupLayout());
 
+        Button *b = new Button(win, "Reload shaders");
+        b->setCallback([this]() {
+            loadShaders();
+            mBoundingBox->setShader(mBoxShader);
+        });
+        b = new Button(win, "Reload kernels");
+        b->setCallback([this]() {
+            loadKernels();
+        });
 
         /// Fluid scenes
         new Label(win, "Fluid Setups");
-        Button *b = new Button(win, "Dam break");
+        b = new Button(win, "Dam break");
         b->setCallback([&]() {
             this->loadFluidSetup(RESPATH("fluidSetups/dam-break.txt"));
         });
@@ -232,7 +159,7 @@ namespace pbf {
         dirIntensity->setValue(mDirLight->getIntensity());
 
 
-        /// Spot light parameters
+        /// Point light parameters
 
         new Label(win, "Point Parameters", "sans", 10);
         new Label(win, "Intensity");
@@ -261,7 +188,7 @@ namespace pbf {
         spotSlider->setValue(mPointLight->getAttenuation().b / 10);
 
         FormHelper *gui = new FormHelper(screen);
-        gui->addWindow(Eigen::Vector2i(300, 125), "Fluid parameters");
+        gui->addWindow(Eigen::Vector2i(1100, 15), "Fluid parameters");
 
         gui->addButton("Load", [&, gui] {
             std::string filename = file_dialog({ {"txt", "Text file"}, {"txt", "Text file"} }, false);
@@ -827,6 +754,49 @@ namespace pbf {
         double FPS = mFramesSinceLastUpdate / timeSinceLastUpdate;
         ss << "Average FPS: " << std::setprecision(3) << FPS;
         mLabelFPS->setCaption(ss.str());
+    }
+
+    void ParticleSimulationScene::loadShaders() {
+        /// Create shaders
+        mParticlesShader = std::make_shared<clgl::BaseShader>(
+                std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("particles.vert")},
+                                                        {GL_FRAGMENT_SHADER, SHADERPATH("particles.frag")}});
+        mParticlesShader->compile();
+
+        mBoxShader = std::make_shared<clgl::BaseShader>(
+                std::unordered_map<GLuint, std::string>{{GL_VERTEX_SHADER,   SHADERPATH("box.vert")},
+                                                        {GL_FRAGMENT_SHADER, SHADERPATH("box.frag")}});
+        mBoxShader->compile();
+    }
+
+    void ParticleSimulationScene::loadKernels() {
+        OCL_ERROR;
+
+        /// Setup counting sort kernels
+        mCountingSortProgram = util::LoadCLProgram("counting_sort.cl", mContext, mDevice, GetDefinesCL(*mGridCL));
+        OCL_CHECK(mSortInsertParticles = make_unique<Kernel>(*mCountingSortProgram, "insert_particles", CL_ERROR));
+        OCL_CHECK(mSortComputeBinStartID = make_unique<Kernel>(*mCountingSortProgram, "compute_bin_start_ID", CL_ERROR));
+        OCL_CHECK(mSortReindexParticles = make_unique<Kernel>(*mCountingSortProgram, "reindex_particles", CL_ERROR));
+
+        /// Setup position adjustment kernels
+        mPositionAdjustmentProgram = util::LoadCLProgram("fluid_sim.cl", mContext, mDevice, GetDefinesCL(*mGridCL));
+        OCL_CHECK(mCalcDensities = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_densities", CL_ERROR));
+        OCL_CHECK(mCalcLambdas = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_lambdas", CL_ERROR));
+        OCL_CHECK(mCalcDeltaPositionAndDoUpdate = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_delta_pi_and_update", CL_ERROR));
+        OCL_CHECK(mRecalcVelocities = make_unique<Kernel>(*mPositionAdjustmentProgram, "recalc_velocities", CL_ERROR));
+        OCL_CHECK(mCalcCurls = make_unique<Kernel>(*mPositionAdjustmentProgram, "calc_curls", CL_ERROR));
+        OCL_CHECK(mApplyVortAndViscXSPH = make_unique<Kernel>(*mPositionAdjustmentProgram, "apply_vort_and_viscXSPH", CL_ERROR));
+        OCL_CHECK(mSetPositionsFromPredictions = make_unique<Kernel>(*mPositionAdjustmentProgram, "set_positions_from_predictions", CL_ERROR));
+
+        /// Setup timestep kernel
+        mTimestepProgram = util::LoadCLProgram("timestep.cl", mContext, mDevice);
+        OCL_CHECK(mTimestepKernel = make_unique<Kernel>(*mTimestepProgram, "timestep", CL_ERROR));
+
+        /// Setup "clip to bounds"-kernel
+        mClipToBoundsProgram = util::LoadCLProgram("clip_to_bounds.cl", mContext, mDevice);
+        OCL_CHECK(mClipToBoundsKernel = make_unique<Kernel>(*mClipToBoundsProgram, "clip_to_bounds", CL_ERROR));
+
+        OCL_CALL(mClipToBoundsKernel->setArg(1, sizeof(pbf::Bounds), mBoundsCL.get()));
     }
 
     const uint ParticleSimulationScene::NUM_AVG_SIM_TIMES = 10;

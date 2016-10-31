@@ -41,6 +41,10 @@ namespace pbf {
     private:
         void loadFluidSetup(const std::string &path);
 
+        void loadShaders();
+
+        void loadKernels();
+
         void initializeParticleStates(std::vector<glm::vec4> && positions,
                                       std::vector<glm::vec4> && velocities,
                                       std::vector<float> && densities);
