@@ -62,6 +62,8 @@ namespace clgl {
 
         bool mIsRecording;
 
+
+
         uint mNextFrameNumber;
 
         class Screen : public nanogui::Screen {
@@ -85,8 +87,6 @@ namespace clgl {
             virtual bool resizeEvent(const Eigen::Vector2i &i) override;
 
             virtual void drawAll() override;
-
-            virtual bool resizeEvent(const Eigen::Vector2i &i) override;
 
         private:
             Application &mApp;

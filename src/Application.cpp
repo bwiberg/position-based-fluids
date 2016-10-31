@@ -208,12 +208,12 @@ namespace clgl {
             if (this->mScene) { mScene->reset(); }
         });
 
-        Button *record = new Button(tools, "", ENTYPO_ICON_RECORD);
-        record->setFlags(Button::Flags::ToggleButton);
-        record->setFixedSize(toolSize);
-        record->setChangeCallback([=] (bool shouldRecord){
-            this->toggleRecording(shouldRecord);
-        });
+//        Button *record = new Button(tools, "", ENTYPO_ICON_RECORD);
+//        record->setFlags(Button::Flags::ToggleButton);
+//        record->setFixedSize(toolSize);
+//        record->setChangeCallback([=] (bool shouldRecord){
+//            this->toggleRecording(shouldRecord);
+//        });
 
         PopupButton *load = new PopupButton(tools, "LOAD");
         load->setFixedSize(toolSize);
@@ -270,12 +270,15 @@ namespace clgl {
         std::ofstream fs(framename);
         std::cout << framename << std::endl;
 
-        const uint width  = static_cast<uint>(mScreen->width());
-        const uint height = static_cast<uint>(mScreen->height());
+        int width;
+        int height;
+
+        glfwGetWindowSize(mScreen->glfwWindow(), &width, &height);
 
         std::vector<GLubyte> pixels;
         pixels.resize(3 * width * height);
 
+        glPixelStorei(GL_PACK_ALIGNMENT, 1);
         glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
 
         std::vector<unsigned char> image(pixels.begin(), pixels.end());
