@@ -331,35 +331,6 @@ namespace pbf {
         updateTimeLabelsInGUI(0.0);
     }
 
-    // for all particles i do
-    //      apply external forces vi ⇐ vi +∆tfext(xi)
-    //      predict position x∗i ⇐ xi +∆tvi
-    // end for
-    //
-    // for all particles i do
-    //      find neighboring particles Ni(x∗i)
-    // end for
-    //
-    // while iter < solverIterations do
-    //      for all particles i do
-    //          calculate λi
-    //      end for
-    //
-    //      for all particles i do
-    //          calculate ∆pi
-    //          perform collision detection and response
-    //      end for
-    //
-    //      for all particles i do
-    //          update position x∗i ⇐ x∗i + ∆pi
-    //      end for
-    // end while
-    //
-    // for all particles i do
-    //      update velocity vi ⇐ (1/∆t)(x∗i − xi)
-    //      apply vorticity confinement and XSPH viscosity
-    //      update position xi ⇐ x∗i
-    // end for
     void ParticleSimulationScene::update() {
         double timeBegin = glfwGetTime();
         if (mFramesSinceLastUpdate == 0) {
@@ -411,64 +382,6 @@ namespace pbf {
         OCL_CALL(mQueue.enqueueNDRangeKernel(*mSortComputeBinStartID, cl::NullRange,
                                              cl::NDRange(mGridCL->binCount, 1), cl::NullRange));
 
-//        {
-//            std::vector<cl_float3> positions;
-//            positions.resize(mNumParticles);
-//
-//            std::vector<cl_uint> binIDs;
-//            binIDs.resize(mNumParticles);
-//
-//            std::vector<cl_uint> binCounts;
-//            binCounts.resize(mGridCL->binCount);
-//
-//            std::vector<cl_uint> binStartIDs;
-//            binStartIDs.resize(mGridCL->binCount);
-//
-//            std::vector<cl_uint> inBinIDs;
-//            inBinIDs.resize(mNumParticles);
-//
-//            std::vector<cl_uint> newIDs;
-//            newIDs.resize(mNumParticles);
-//
-//            mQueue.enqueueReadBuffer(*mPositionsCL[previousBufferID], true, 0, sizeof(cl_float3) * mNumParticles, positions.data());
-//            mQueue.enqueueReadBuffer(*mParticleBinIDCL[previousBufferID], true, 0, sizeof(cl_uint) * mNumParticles, binIDs.data());
-//            mQueue.enqueueReadBuffer(*mBinCountCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binCounts.data());
-//            mQueue.enqueueReadBuffer(*mBinStartIDCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binStartIDs.data());
-//            mQueue.enqueueReadBuffer(*mParticleInBinPosCL, true, 0, sizeof(cl_uint) * mNumParticles, inBinIDs.data());
-//
-//            uint binID;
-//            uint falseCount = 0;
-//            //std::cout << std::endl << std::endl;
-//            for (uint i = 0; i < mNumParticles; ++i) {
-//                binID = binIDs[i];
-//                newIDs[i] = binStartIDs[binID] + inBinIDs[i];
-//
-//                cl_float3 clposition = positions[i];
-//                glm::vec3 position(clposition.s[0], clposition.s[1], clposition.s[2]);
-//                glm::uvec3 indices;
-//                indices.x = uint(clamp((position.x + mGridCL->halfDimensions.s[0]) / mGridCL->binSize, 0.0f, float(mGridCL->binCount3D.s[0] - 1)));
-//                indices.y = uint(clamp((position.y + mGridCL->halfDimensions.s[1]) / mGridCL->binSize, 0.0f, float(mGridCL->binCount3D.s[1] - 1)));
-//                indices.z = uint(clamp((position.z + mGridCL->halfDimensions.s[2]) / mGridCL->binSize, 0.0f, float(mGridCL->binCount3D.s[2] - 1)));
-//                uint index = indices.x + mGridCL->binCount3D.s[0] * indices.y + mGridCL->binCount3D.s[0] * mGridCL->binCount3D.s[1] * indices.z;
-//                if (indices == glm::uvec3(1, 1, 1)) {
-//                    std::cout << glm::to_string(position) << std::endl;
-//                }
-//            };
-//
-//            std::sort(newIDs.begin(), newIDs.end());
-//            auto iter = std::adjacent_find(newIDs.begin(), newIDs.end());
-//            std::cout << "Found " << falseCount << " particles assigned to wrong bin" << std::endl;
-//            if (iter != newIDs.end()) {
-//                std::cout << "Found particles with duplicate IDs!" << std::endl;
-//            }
-//
-//            std::cout << "Bin counts: [";
-//            for (uint binCount : binCounts) {
-//                std::cout << binCount << ", ";
-//            }
-//            std::cout << "]" << std::endl;
-//        }
-
         OCL_CALL(mSortReindexParticles->setArg(0, *mParticleInBinPosCL));
         OCL_CALL(mSortReindexParticles->setArg(1, *mBinStartIDCL));
         OCL_CALL(mSortReindexParticles->setArg(2, *mPositionsCL[previousBufferID]));
@@ -515,53 +428,7 @@ namespace pbf {
             OCL_CALL(mCalcLambdas->setArg(6, *mParticleLambdasCL));
             OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcLambdas, cl::NullRange,
                                                  cl::NDRange(mNumParticles, 1), cl::NullRange));
-
-//            {
-//                std::vector<float> densities;
-//                densities.resize(mNumParticles);
-//
-//                std::vector<cl_float3> positions;
-//                positions.resize(mNumParticles);
-//
-//                std::vector<cl_uint> binIDs;
-//                binIDs.resize(mNumParticles);
-//
-//
-//                mQueue.enqueueReadBuffer(*mDensitiesCL, true, 0, sizeof(cl_float) * mNumParticles, densities.data());
-//                mQueue.enqueueReadBuffer(*mPositionsCL[mCurrentBufferID], true, 0, sizeof(cl_float3) * mNumParticles, positions.data());
-//                mQueue.enqueueReadBuffer(*mParticleBinIDCL[mCurrentBufferID], true, 0, sizeof(cl_uint) * mNumParticles, binIDs.data());
-//
-//                std::cout << std::endl << std::endl;
-//                for (uint i = 0; i < 50; ++i) {
-//                    float d = densities[i];
-//                    cl_float3 p = positions[i];
-//                    cl_uint b = binIDs[i];
-//
-//                    std::cout << "Pos={" << p.s[0] << ", " << p.s[1] << ", " << p.s[2] << "}"
-//                              << ", BinID=" << b
-//                              << ", Density=" << d
-//                              << std::endl << std::endl;
-//                };
-//                std::cout << std::endl << std::endl;
-//            }
-
-//            {
-//                std::vector<cl_uint> binCounts;
-//                binCounts.resize(mGridCL->binCount);
-//
-//                std::vector<cl_uint> binStartIDs;
-//                binStartIDs.resize(mGridCL->binCount);
-//
-//                mQueue.enqueueReadBuffer(*mBinCountCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binCounts.data());
-//                mQueue.enqueueReadBuffer(*mBinStartIDCL, true, 0, sizeof(cl_uint) * mGridCL->binCount, binStartIDs.data());
-//
-//                std::cout << std::endl << std::endl;
-//                for (uint i = 0; i < binCounts.size(); ++i) {
-//                    std::cout << i << ", " << binCounts[i] << ", " << binStartIDs[i] << std::endl;
-//                };
-//                std::cout << std::endl << std::endl;
-//            }
-
+            
 
             ////////////////////////////////////////////////
             /// calculate ∆pi                            ///
