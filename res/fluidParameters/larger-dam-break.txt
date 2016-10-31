@@ -1,0 +1,10 @@
+kernelRadius   0.15
+restDensity    6378
+deltaTime      0.0083
+epsilon        600
+k              0.001
+delta_q        0.01
+n              6
+c              0
+k_vc           0
+kBoundsDensity 500
