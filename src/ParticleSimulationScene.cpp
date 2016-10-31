@@ -23,6 +23,7 @@ namespace pbf {
     ParticleSimulationScene::ParticleSimulationScene(cl::Context &context, cl::Device &device, cl::CommandQueue &queue)
             : BaseScene(context, device, queue) {
         mParticleRadius = 2.0f;
+        mCurrentFluidSetup = RESPATH("fluidSetups/dam-break.txt");
 
         loadShaders();
 
@@ -33,7 +34,7 @@ namespace pbf {
 
 
         /// Create geometry
-        auto boxMesh = clgl::Primitives::createBox(glm::vec3(1.0f, 1.0f, 1.0f));
+        auto boxMesh = clgl::Primitives::CreateBox(glm::vec3(1.0f, 1.0f, 1.0f));
         boxMesh->flipNormals();
         mBoundingBox = std::make_shared<clgl::MeshObject>(
                 std::move(boxMesh),
@@ -114,15 +115,18 @@ namespace pbf {
         new Label(win, "Fluid Setups");
         b = new Button(win, "Dam break");
         b->setCallback([&]() {
-            this->loadFluidSetup(RESPATH("fluidSetups/dam-break.txt"));
+            mCurrentFluidSetup = RESPATH("fluidSetups/dam-break.txt");
+            this->loadFluidSetup(mCurrentFluidSetup);
         });
         b = new Button(win, "Larger dam break");
         b->setCallback([&]() {
-            this->loadFluidSetup(RESPATH("fluidSetups/large-dam-break.txt"));
+            mCurrentFluidSetup = RESPATH("fluidSetups/large-dam-break.txt");
+            this->loadFluidSetup(mCurrentFluidSetup);
         });
         b = new Button(win, "Cube drop");
         b->setCallback([&]() {
-            this->loadFluidSetup(RESPATH("fluidSetups/cube-drop.txt"));
+            mCurrentFluidSetup = RESPATH("fluidSetups/cube-drop.txt");
+            this->loadFluidSetup(mCurrentFluidSetup);
         });
 
         /// FPS Labels
@@ -242,34 +246,32 @@ namespace pbf {
     void ParticleSimulationScene::initializeParticleStates(std::vector<glm::vec4> &&positions,
                                                            std::vector<glm::vec4> &&velocities,
                                                            std::vector<float> &&densities) {
-        const unsigned int MAX_PARTICLES = positions.size();
-
         mPositionsGL[FIRST_BUFFER]->bind();
-        mPositionsGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPositionsGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * NUM_MAX_PARTICLES, &positions[0]);
         mPositionsGL[FIRST_BUFFER]->unbind();
 
         mVelocitiesGL[FIRST_BUFFER]->bind();
-        mVelocitiesGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
+        mVelocitiesGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * NUM_MAX_PARTICLES, &velocities[0]);
         mVelocitiesGL[FIRST_BUFFER]->unbind();
 
         mPositionsGL[SECOND_BUFFER]->bind();
-        mPositionsGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPositionsGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * NUM_MAX_PARTICLES, &positions[0]);
         mPositionsGL[SECOND_BUFFER]->unbind();
 
         mVelocitiesGL[SECOND_BUFFER]->bind();
-        mVelocitiesGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &velocities[0]);
+        mVelocitiesGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * NUM_MAX_PARTICLES, &velocities[0]);
         mVelocitiesGL[SECOND_BUFFER]->unbind();
 
         mPredictedPositionsGL[FIRST_BUFFER]->bind();
-        mPredictedPositionsGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPredictedPositionsGL[FIRST_BUFFER]->bufferData(4 * sizeof(float) * NUM_MAX_PARTICLES, &positions[0]);
         mPredictedPositionsGL[FIRST_BUFFER]->unbind();
 
         mPredictedPositionsGL[SECOND_BUFFER]->bind();
-        mPredictedPositionsGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * MAX_PARTICLES, &positions[0]);
+        mPredictedPositionsGL[SECOND_BUFFER]->bufferData(4 * sizeof(float) * NUM_MAX_PARTICLES, &positions[0]);
         mPredictedPositionsGL[SECOND_BUFFER]->unbind();
 
         mDensitiesGL->bind();
-        mDensitiesGL->bufferData(sizeof(float) * MAX_PARTICLES, &densities[0]);
+        mDensitiesGL->bufferData(sizeof(float) * NUM_MAX_PARTICLES, &densities[0]);
         mDensitiesGL->unbind();
 
         /// Create OpenCL references to OpenGL buffers
@@ -295,17 +297,17 @@ namespace pbf {
         /// Setup CL-only buffers (for the grid)
         OCL_CHECK(mBinCountCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * mGridCL->binCount, (void*)0, CL_ERROR));
         OCL_CHECK(mBinStartIDCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * mGridCL->binCount, (void*)0, CL_ERROR));
-        OCL_CHECK(mParticleInBinPosCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
-        OCL_CHECK(mParticleBinIDCL[FIRST_BUFFER] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
-        OCL_CHECK(mParticleBinIDCL[SECOND_BUFFER] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * MAX_PARTICLES, (void*)0, CL_ERROR));
-        OCL_CHECK(mParticleLambdasCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_float) * MAX_PARTICLES, (void*)0, CL_ERROR));
-        OCL_CHECK(mParticleCurlsCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_float3) * MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleInBinPosCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * NUM_MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleBinIDCL[FIRST_BUFFER] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * NUM_MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleBinIDCL[SECOND_BUFFER] = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_uint) * NUM_MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleLambdasCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_float) * NUM_MAX_PARTICLES, (void*)0, CL_ERROR));
+        OCL_CHECK(mParticleCurlsCL = make_unique<cl::Buffer>(mContext, CL_MEM_READ_WRITE, sizeof(cl_float3) * NUM_MAX_PARTICLES, (void*)0, CL_ERROR));
 
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinCountCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
         OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mBinStartIDCL, 0, 0, sizeof(cl_uint) * mGridCL->binCount));
-        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleInBinPosCL, 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
-        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[FIRST_BUFFER], 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
-        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[SECOND_BUFFER], 0, 0, sizeof(cl_uint) * MAX_PARTICLES));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleInBinPosCL, 0, 0, sizeof(cl_uint) * NUM_MAX_PARTICLES));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[FIRST_BUFFER], 0, 0, sizeof(cl_uint) * NUM_MAX_PARTICLES));
+        OCL_CALL(mQueue.enqueueFillBuffer<cl_uint>(*mParticleBinIDCL[SECOND_BUFFER], 0, 0, sizeof(cl_uint) * NUM_MAX_PARTICLES));
 
         /// Set these arguments of the kernel since they don't flip their buffers
         OCL_CALL(mSortInsertParticles->setArg(2, *mParticleInBinPosCL));
@@ -320,36 +322,8 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::reset() {
-        const unsigned int MAX_PARTICLES = 2000;
-        mNumParticles = MAX_PARTICLES;
         mCurrentBufferID = 0;
-        mNumSolverIterations = 1;
-
-        std::vector<glm::vec4> positions(MAX_PARTICLES);
-
-        std::vector<float> polarAngles = util::generate_uniform_floats(mNumParticles, -CL_M_PI/2, CL_M_PI/2);
-        std::vector<float> azimuthalAngles = util::generate_uniform_floats(mNumParticles, 0.0f, 2 * CL_M_PI);
-
-        std::vector<glm::vec4> velocities(MAX_PARTICLES);
-        {
-            glm::vec4 velocity(0);
-            float polar, azimuthal;
-
-            for (int i = 0; i < MAX_PARTICLES; ++i) {
-                polar = polarAngles[i];
-                azimuthal = azimuthalAngles[i];
-
-                velocity.x = sinf(azimuthal) * cosf(polar);
-                velocity.y = cosf(azimuthal);
-                velocity.z = sinf(azimuthal) * sinf(polar);
-
-                velocities[i] = velocity;
-            }
-        }
-
-        std::vector<float> densities(MAX_PARTICLES);
-
-        initializeParticleStates(std::move(positions), std::move(velocities), std::move(densities));
+        loadFluidSetup(mCurrentFluidSetup);
 
         while (!mSimulationTimes.empty()) {
             mSimulationTimes.pop_back();
@@ -800,4 +774,6 @@ namespace pbf {
     }
 
     const uint ParticleSimulationScene::NUM_AVG_SIM_TIMES = 10;
+
+    const uint ParticleSimulationScene::NUM_MAX_PARTICLES = 10000;
 }

@@ -63,6 +63,8 @@ namespace pbf {
 
         unsigned int mNumParticles;
 
+        std::string mCurrentFluidSetup;
+
         float mParticleRadius;
 
         unsigned int mNumSolverIterations;
@@ -130,6 +132,8 @@ namespace pbf {
         std::deque<double> mSimulationTimes;
 
         static const uint NUM_AVG_SIM_TIMES;
+
+        static const uint NUM_MAX_PARTICLES;
 
         double mTimeOfLastUpdate;
         uint mFramesSinceLastUpdate;
