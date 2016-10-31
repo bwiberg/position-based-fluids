@@ -8,12 +8,16 @@ namespace clgl {
     /// @author Benjamin Wiberg
     class MeshObject : public RenderObject {
     public:
-        MeshObject(std::shared_ptr<Mesh> mesh, std::shared_ptr<BaseShader> shader);
+        MeshObject(std::shared_ptr<Mesh> mesh, std::shared_ptr<BaseShader> shader, bool hasIndices = false);
 
         virtual void render(const glm::mat4 &viewProjection) override;
 
     private:
         unsigned int mNumVertices;
+
+        unsigned int mNumElements;
+
+        bool mRenderElements;
 
         bwgl::VertexArray mVertices;
 
@@ -25,7 +29,7 @@ namespace clgl {
 
         bwgl::VertexBuffer mColorsBuffer;
 
-        //bwgl::VertexBuffer mIndices;
+        bwgl::VertexBuffer mIndicesBuffer;
     };
 
 
