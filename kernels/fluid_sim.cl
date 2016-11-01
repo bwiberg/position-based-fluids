@@ -422,25 +422,30 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
                                             float4(curl.x,  curl.y,  curl.z, 0.0f));
 
     if (ID == 0) {
-        printf("curl=[%f, %f, %f], n=[%f, %f, %f], f_vc=[%f, %f, %f]\n", curl.x, curl.y, curl.z, n.x, n.y, n.z, f_vc.x, f_vc.y, f_vc.z);
+        //printf("curl=[%f, %f, %f], n=[%f, %f, %f], f_vc=[%f, %f, %f]\n", curl.x, curl.y, curl.z, n.x, n.y, n.z, f_vc.x, f_vc.y, f_vc.z);
     }
-/// Apply XSPH viscosity smoothing
-//    float3 sumWeightedNeighbourVelocities = ZERO3F;
-//
-//    for (uint i = 0; i < neighbouringBinCount; ++i) {
-//        uint nBinID = neighbouringBinIDs[i];
-//
-//        nBinStartID = binStartIDs[nBinID];
-//        nBinCount = binCounts[nBinID];
-//
-//        for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
-//            sumWeightedNeighbourVelocities +=
-//                     (velocity - velocitiesIn[pID]) * Wpoly6(position - positions[pID], fluid.kernelRadius);
-//        }
-//    }
-//
+
+    /// Apply XSPH viscosity smoothing
+    float3 sumWeightedNeighbourVelocities = ZERO3F;
+
+    for (uint i = 0; i < neighbouringBinCount; ++i) {
+        uint nBinID = neighbouringBinIDs[i];
+
+        nBinStartID = binStartIDs[nBinID];
+        nBinCount = binCounts[nBinID];
+
+        for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
+            sumWeightedNeighbourVelocities += (1 / densities[pID]) *
+                     (velocity - velocitiesIn[pID]) * Wpoly6(position - positions[pID], fluid.kernelRadius);
+        }
+    }
+
     /* + fluid.c * sumWeightedNeighbourVelocities*/
-    velocitiesOut[ID] = velocity + fluid.deltaTime * float3(f_vc.x, f_vc.y, f_vc.z);
+    //velocitiesOut[ID] = sumWeightedNeighbourVelocities;
+    //velocitiesOut[ID] = velocity;
+    velocitiesOut[ID] = velocity
+                        + fluid.c * sumWeightedNeighbourVelocities;
+    //                    + fluid.deltaTime * float3(f_vc.x, f_vc.y, f_vc.z);
 }
 
 __kernel void set_positions_from_predictions(__global const float3 *predictedPositions,
