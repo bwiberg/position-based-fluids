@@ -660,6 +660,7 @@ namespace pbf {
             if (clickedOnSphere(mSpawnPointSphere, p)) {
                 std::cout << "Clicked on sphere!" << std::endl;
                 mIsMovingSpawnPoint = down;
+                return true;
             } else {
                 std::cout << "Missed the sphere!" << std::endl;
             }
@@ -673,13 +674,6 @@ namespace pbf {
 
     bool
     ParticleSimulationScene::mouseMotionEvent(const glm::ivec2 &p, const glm::ivec2 &rel, int button, int modifiers) {
-        if (clickedOnSphere(mSpawnPointSphere, p)) {
-            std::cout << "Clicked on sphere!" << std::endl;
-        } else {
-            std::cout << "Missed the sphere!" << std::endl;
-        }
-
-
         if (mIsRotatingCamera) {
             glm::vec3 eulerAngles = mCameraRotator->getEulerAngles();
             eulerAngles.x += 0.05f * rel.y;
