@@ -38,6 +38,8 @@ namespace pbf {
 
         virtual bool resizeEvent(const glm::ivec2 &p) override;
 
+        virtual bool keyboardEvent(int key, int scancode, int action, int modifiers) override;
+
     private:
         void loadFluidSetup(const std::string &path);
 
@@ -48,6 +50,8 @@ namespace pbf {
         void initializeParticleStates(std::vector<glm::vec4> && positions,
                                       std::vector<glm::vec4> && velocities,
                                       std::vector<float> && densities);
+
+        void spawnParticles();
 
         std::shared_ptr<clgl::Camera> mCamera;
 

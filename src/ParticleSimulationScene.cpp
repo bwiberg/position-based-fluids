@@ -29,12 +29,14 @@ namespace pbf {
 
         /// Create camera
         mCameraRotator = std::make_shared<clgl::SceneObject>();
+        mCameraRotator->translate(glm::vec3(0.0f, 0.10f, 0.0f));
         mCamera = std::make_shared<clgl::Camera>(glm::uvec2(100, 100), 50);
         clgl::SceneObject::attach(mCameraRotator, mCamera);
 
+        const glm::vec3 HALFDIMS(0.8f, 1.0f, 1.0f);
 
         /// Create geometry
-        auto boxMesh = clgl::Primitives::CreateBox(glm::vec3(1.0f, 1.0f, 1.0f));
+        auto boxMesh = clgl::Primitives::CreateBox(HALFDIMS);
         boxMesh->flipNormals();
         mBoundingBox = std::make_shared<clgl::MeshObject>(
                 std::move(boxMesh),
@@ -42,14 +44,14 @@ namespace pbf {
         );
 
         mBoundsCL = make_unique<pbf::Bounds>();
-        mBoundsCL->halfDimensions = {1.0f, 1.0f, 1.0f, 0.0f};
-        mBoundsCL->dimensions = {2.0f, 2.0f, 2.0f, 0.0f};
+        mBoundsCL->halfDimensions = {HALFDIMS.x, HALFDIMS.y, HALFDIMS.z, 0.0f};
+        mBoundsCL->dimensions = {2*HALFDIMS.x, 2*HALFDIMS.y, 2*HALFDIMS.z, 0.0f};
 
         mGridCL = make_unique<pbf::Grid>();
-        mGridCL->halfDimensions = {1.0f, 1.0f, 1.0f, 0.0f};
-        mGridCL->binSize = 0.25f;
-        mGridCL->binCount3D = {8, 8, 8, 0};
-        mGridCL->binCount = 8 * 8 * 8;
+        mGridCL->halfDimensions = {HALFDIMS.x, HALFDIMS.y, HALFDIMS.z, 0.0f};
+        mGridCL->binSize = 0.2f;
+        mGridCL->binCount3D = {8, 10, 10, 0};
+        mGridCL->binCount = 8 * 10 * 10;
 
         mFluidCL = pbf::Fluid::GetDefault();
 
@@ -145,51 +147,51 @@ namespace pbf {
 
         /// Ambient light parameters
 
-        new Label(win, "Ambient Intensity", "sans", 10);
-        Slider *ambIntensity = new Slider(win);
-        ambIntensity->setCallback([&](float value){
-            mAmbLight->setIntensity(value);
-        });
-        ambIntensity->setValue(mAmbLight->getIntensity());
+//        new Label(win, "Ambient Intensity", "sans", 10);
+//        Slider *ambIntensity = new Slider(win);
+//        ambIntensity->setCallback([&](float value){
+//            mAmbLight->setIntensity(value);
+//        });
+//        ambIntensity->setValue(mAmbLight->getIntensity());
 
 
         /// Directional light parameters
 
-        new Label(win, "Directional Intensity", "sans", 10);
-        Slider *dirIntensity = new Slider(win);
-        dirIntensity->setCallback([&](float value){
-            mDirLight->setIntensity(value);
-        });
-        dirIntensity->setValue(mDirLight->getIntensity());
+//        new Label(win, "Directional Intensity", "sans", 10);
+//        Slider *dirIntensity = new Slider(win);
+//        dirIntensity->setCallback([&](float value){
+//            mDirLight->setIntensity(value);
+//        });
+//        dirIntensity->setValue(mDirLight->getIntensity());
 
 
         /// Point light parameters
 
-        new Label(win, "Point Parameters", "sans", 10);
-        new Label(win, "Intensity");
-        Slider *spotSlider = new Slider(win);
-        spotSlider->setCallback([&](float value){
-            mPointLight->setIntensity(value);
-        });
-        spotSlider->setValue(mPointLight->getIntensity());
-
-        new Label(win, "Attenuation (linear)");
-        spotSlider = new Slider(win);
-        spotSlider->setCallback([&](float value){
-            clgl::Attenuation att = mPointLight->getAttenuation();
-            att.a = value * 10;
-            mPointLight->setAttenuation(att);
-        });
-        spotSlider->setValue(mPointLight->getAttenuation().a / 10);
-
-        new Label(win, "Attenuation (quadratic)");
-        spotSlider = new Slider(win);
-        spotSlider->setCallback([&](float value){
-            clgl::Attenuation att = mPointLight->getAttenuation();
-            att.b = value * 10;
-            mPointLight->setAttenuation(att);
-        });
-        spotSlider->setValue(mPointLight->getAttenuation().b / 10);
+//        new Label(win, "Point Parameters", "sans", 10);
+//        new Label(win, "Intensity");
+//        Slider *spotSlider = new Slider(win);
+//        spotSlider->setCallback([&](float value){
+//            mPointLight->setIntensity(value);
+//        });
+//        spotSlider->setValue(mPointLight->getIntensity());
+//
+//        new Label(win, "Attenuation (linear)");
+//        spotSlider = new Slider(win);
+//        spotSlider->setCallback([&](float value){
+//            clgl::Attenuation att = mPointLight->getAttenuation();
+//            att.a = value * 10;
+//            mPointLight->setAttenuation(att);
+//        });
+//        spotSlider->setValue(mPointLight->getAttenuation().a / 10);
+//
+//        new Label(win, "Attenuation (quadratic)");
+//        spotSlider = new Slider(win);
+//        spotSlider->setCallback([&](float value){
+//            clgl::Attenuation att = mPointLight->getAttenuation();
+//            att.b = value * 10;
+//            mPointLight->setAttenuation(att);
+//        });
+//        spotSlider->setValue(mPointLight->getAttenuation().b / 10);
 
         FormHelper *gui = new FormHelper(screen);
         gui->addWindow(Eigen::Vector2i(1100, 15), "Fluid parameters");
@@ -428,7 +430,7 @@ namespace pbf {
             OCL_CALL(mCalcLambdas->setArg(6, *mParticleLambdasCL));
             OCL_CALL(mQueue.enqueueNDRangeKernel(*mCalcLambdas, cl::NullRange,
                                                  cl::NDRange(mNumParticles, 1), cl::NullRange));
-            
+
 
             ////////////////////////////////////////////////
             /// calculate ∆pi                            ///
@@ -545,9 +547,60 @@ namespace pbf {
         mBoundingBox->render(VP);
     }
 
+    void ParticleSimulationScene::spawnParticles() {
+        const glm::vec3 spawnPoint(-mBoundsCL->halfDimensions.s[0],
+                                   0.5f * mBoundsCL->halfDimensions.s[0],
+                                   0.0f);
+
+
+        const float delta = 0.05f * 6400 / mFluidCL->restDensity;
+        const float radius = 4 * delta;
+
+        const float initialVelocity = delta / mFluidCL->deltaTime;
+
+        std::vector<glm::vec4> newPositions;
+
+        glm::vec3 position;
+        for (int z = -4; z <= 4; ++z) {
+            for (int y = -4; y <= 4; ++y) {
+                position.x = spawnPoint.x + delta;
+                position.y = spawnPoint.y + delta * y;
+                position.z = spawnPoint.z + delta * z;
+
+                if (powf(position.y - spawnPoint.y, 2) + powf(position.z - spawnPoint.z, 2) <= powf(radius, 2)) {
+                    newPositions.push_back(glm::vec4(position, 1.0f));
+                }
+            }
+        }
+
+        const uint nNewParticles = std::min(static_cast<uint>(newPositions.size()) + mNumParticles, NUM_MAX_PARTICLES) - mNumParticles;
+
+        std::vector<glm::vec4> newVelocities(nNewParticles);
+        std::fill(newVelocities.begin(), newVelocities.end(), glm::vec4(initialVelocity, 0.0f, 0.0f, 0.0f));
+
+        /// Push to OpenGL buffer
+        mPositionsGL[mCurrentBufferID]->bind();
+        mPositionsGL[mCurrentBufferID]->bufferSubData(mNumParticles * sizeof(glm::vec4), nNewParticles * sizeof(glm::vec4), newPositions.data());
+        mPositionsGL[mCurrentBufferID]->unbind();
+        mVelocitiesGL[FIRST_BUFFER]->bind();
+        mVelocitiesGL[FIRST_BUFFER]->bufferSubData(mNumParticles * sizeof(glm::vec4), nNewParticles * sizeof(glm::vec4), newVelocities.data());
+        mVelocitiesGL[FIRST_BUFFER]->unbind();
+
+        mNumParticles += nNewParticles;
+    }
+
     //////////////////////
     /// INPUT HANDLING ///
     //////////////////////
+
+    bool ParticleSimulationScene::keyboardEvent(int key, int scancode, int action, int modifiers) {
+        if (key == GLFW_KEY_SPACE) {
+            spawnParticles();
+            return true;
+        }
+
+        return false;
+    }
 
     bool ParticleSimulationScene::mouseButtonEvent(const glm::ivec2 &p, int button, bool down, int modifiers) {
         if (button == GLFW_MOUSE_BUTTON_LEFT && down) {
