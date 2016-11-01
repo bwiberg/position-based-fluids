@@ -15,6 +15,8 @@
 #include "simulation/Grid.hpp"
 #include "simulation/Fluid.hpp"
 
+#include "geometry/Sphere.hpp"
+
 #include <deque>
 
 namespace pbf {
@@ -52,6 +54,18 @@ namespace pbf {
                                       std::vector<float> && densities);
 
         void spawnParticles();
+
+        glm::vec3 getWorldSpawnPoint();
+
+        bool clickedOnSphere(const clgl::Sphere &sphere, const glm::ivec2 &cursorPosition);
+
+        glm::vec2 mSpawnPoint;
+
+        clgl::Sphere mSpawnPointSphere;
+
+        std::shared_ptr<clgl::MeshObject> mSpawnPointSphereObject;
+
+        bool mIsMovingSpawnPoint;
 
         std::shared_ptr<clgl::Camera> mCamera;
 

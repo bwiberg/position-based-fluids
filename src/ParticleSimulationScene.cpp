@@ -55,6 +55,17 @@ namespace pbf {
 
         mFluidCL = pbf::Fluid::GetDefault();
 
+        mSpawnPoint = glm::vec2(0.0f, 0.0f);
+        mSpawnPointSphere.mRadius = 0.2f;
+        mSpawnPointSphere.mPosition = getWorldSpawnPoint();
+
+        auto sphereMesh = clgl::Primitives::CreateIcosphere(0.2f, 2);
+        mSpawnPointSphereObject = std::make_shared<clgl::MeshObject>(
+                std::move(sphereMesh),
+                mBoxShader,
+                true
+        );
+        mSpawnPointSphereObject->setPosition(getWorldSpawnPoint());
 
         /// Create lights
         mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.3f, 0.3f, 1.0f), 0.2f);
@@ -544,19 +555,17 @@ namespace pbf {
         mAmbLight->setUniformsInShader(mBoxShader, "ambLight.");
         mDirLight->setUniformsInShader(mBoxShader, "dirLight.");
         mPointLight->setUniformsInShader(mBoxShader, "pointLight.");
+
         mBoundingBox->render(VP);
+        mSpawnPointSphereObject->render(VP);
     }
 
     void ParticleSimulationScene::spawnParticles() {
-        const glm::vec3 spawnPoint(-mBoundsCL->halfDimensions.s[0],
-                                   0.5f * mBoundsCL->halfDimensions.s[0],
-                                   0.0f);
-
-
         const float delta = 0.05f * 6400 / mFluidCL->restDensity;
         const float radius = 4 * delta;
 
         const float initialVelocity = delta / mFluidCL->deltaTime;
+        const glm::vec3 spawnPoint = getWorldSpawnPoint();
 
         std::vector<glm::vec4> newPositions;
 
@@ -567,7 +576,7 @@ namespace pbf {
                 position.y = spawnPoint.y + delta * y;
                 position.z = spawnPoint.z + delta * z;
 
-                if (powf(position.y - spawnPoint.y, 2) + powf(position.z - spawnPoint.z, 2) <= powf(radius, 2)) {
+                if (powf(position.y - spawnPoint.y, 2) + powf(position.z - spawnPoint.z, 2) < powf(radius, 2)) {
                     newPositions.push_back(glm::vec4(position, 1.0f));
                 }
             }
@@ -589,24 +598,74 @@ namespace pbf {
         mNumParticles += nNewParticles;
     }
 
+    glm::vec3 ParticleSimulationScene::getWorldSpawnPoint() {
+        return glm::vec3(-mBoundsCL->halfDimensions.s[0],
+                         mSpawnPoint.y * mBoundsCL->halfDimensions.s[1],
+                         mSpawnPoint.x * mBoundsCL->halfDimensions.s[2]);
+    }
+
+    bool ParticleSimulationScene::clickedOnSphere(const clgl::Sphere &sphere, const glm::ivec2 &cursorPosition) {
+        /// Step 1: 3D normalized device coordinates
+        const float x = (2.0f * cursorPosition.x) / mCamera->getScreenDimensions().x - 1.0f;
+        const float y = 1.0f - (2.0f * cursorPosition.y) / mCamera->getScreenDimensions().y;
+        const float z = 1.0f;
+
+        /// Step 2: 4D homogeneous clip coordinates
+        const glm::vec4 rayClip(x, y, -1.0f, 1.0f);
+
+        /// Step 3: 4D camera coordinates
+        glm::vec4 rayCamera = glm::inverse(mCamera->getPerspectiveTransform()) * rayClip;
+        rayCamera.z = -1.0f;
+        rayCamera.w = 0.0f;
+
+        /// Step 4: 4D world coordinates
+        glm::vec3 rayWorld(mCamera->getTransform() * rayCamera);
+        rayWorld = glm::normalize(rayWorld);
+
+        const glm::vec3 rayOrigin = glm::vec3(mCamera->getParent()->getTransform() * glm::vec4(mCamera->getPosition(), 1.0f));
+        glm::vec3 m = rayOrigin - sphere.mPosition;
+
+        float b = glm::dot(m, rayWorld);
+        float c = glm::dot(m, m) - sphere.mRadius * sphere.mRadius;
+
+        // Exit if r’s origin outside s (c > 0) and r pointing away from s (b > 0)
+        if (c > 0.0f && b > 0.0f) return false;
+        float discr = b*b - c;
+
+        // A negative discriminant corresponds to ray missing sphere
+        return discr >= 0.0f;
+
+    }
+
     //////////////////////
     /// INPUT HANDLING ///
     //////////////////////
 
     bool ParticleSimulationScene::keyboardEvent(int key, int scancode, int action, int modifiers) {
-        if (key == GLFW_KEY_SPACE) {
+        if (key == GLFW_KEY_SPACE && action == GLFW_REPEAT) {
             spawnParticles();
             return true;
+        }
+
+        if (key == GLFW_KEY_LEFT_SHIFT) {
+            if (action == GLFW_PRESS) mIsMovingSpawnPoint = true;
+            else if (action == GLFW_RELEASE) mIsMovingSpawnPoint = false;
         }
 
         return false;
     }
 
     bool ParticleSimulationScene::mouseButtonEvent(const glm::ivec2 &p, int button, bool down, int modifiers) {
-        if (button == GLFW_MOUSE_BUTTON_LEFT && down) {
-            mIsRotatingCamera = true;
-        } else if (button == GLFW_MOUSE_BUTTON_LEFT && !down) {
-            mIsRotatingCamera = false;
+        if (button == GLFW_MOUSE_BUTTON_LEFT) {
+            if (clickedOnSphere(mSpawnPointSphere, p)) {
+                std::cout << "Clicked on sphere!" << std::endl;
+                mIsMovingSpawnPoint = down;
+            } else {
+                std::cout << "Missed the sphere!" << std::endl;
+            }
+
+            mIsRotatingCamera = down;
+            return true;
         }
 
         return false;
@@ -614,12 +673,26 @@ namespace pbf {
 
     bool
     ParticleSimulationScene::mouseMotionEvent(const glm::ivec2 &p, const glm::ivec2 &rel, int button, int modifiers) {
+        if (clickedOnSphere(mSpawnPointSphere, p)) {
+            std::cout << "Clicked on sphere!" << std::endl;
+        } else {
+            std::cout << "Missed the sphere!" << std::endl;
+        }
+
+
         if (mIsRotatingCamera) {
             glm::vec3 eulerAngles = mCameraRotator->getEulerAngles();
             eulerAngles.x += 0.05f * rel.y;
             eulerAngles.y += 0.05f * rel.x;
             eulerAngles.x = clamp(eulerAngles.x, - CL_M_PI_F / 2, CL_M_PI_F / 2);
             mCameraRotator->setEulerAngles(eulerAngles);
+
+            return true;
+        }
+
+        if (mIsMovingSpawnPoint) {
+            mSpawnPoint.x = clamp(mSpawnPoint.x + rel.x / 100.f, -1.0f, 1.0f);
+            mSpawnPoint.y = clamp(mSpawnPoint.y + rel.y / 100.f, -1.0f, 1.0f);
 
             return true;
         }
