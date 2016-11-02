@@ -8,6 +8,7 @@
 //#define USE_FAST_SQRT
 #define ONE_OVER_SQRT_OF_3 0.577350f
 #define ZERO3F float3(0.0f, 0.0f, 0.0f)
+#define DIFF float3(0.015f, 0.015f, 0.015f)
 #define EPSILON 0.0001f
 #define PI 3.1415926535f
 #define ID get_global_id(0)
@@ -46,6 +47,8 @@ float euclidean_distance(const float3 r);
 float Wpoly6(const float3 r, const float h);
 
 float3 grad_Wspiky(const float3 r, const float h);
+
+float3 cross_(float3 u_, float3 v_);
 
 float sqroot(float x__);
 
@@ -344,9 +347,19 @@ __kernel void calc_curls(const Fluid            fluid,          // 0
         nBinCount = binCounts[nBinID];
 
         for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
-            u = velocity - velocities[pID];
+            u = velocities[pID] - velocity;
             v = grad_Wspiky(position - positions[pID], fluid.kernelRadius);
-            curl += cross(float4(u.x, u.y, u.z, 0.0f), float4(v.x, v.y, v.z, 0.0f));
+
+            float3 cr = cross_(u, v);
+            if (euclidean_distance(v) > EPSILON && ID == 0) {
+                printf("u=[%f, %f, %f]\n", u.x, u.y, u.z);
+                printf("v=[%f, %f, %f]\n", v.x, v.y, v.z);
+                printf("pi=[%f, %f, %f]\n", position.x, position.y, position.z);
+                printf("pj=[%f, %f, %f]\n", positions[pID].x, positions[pID].y, positions[pID].z);
+                printf("curl=[%f, %f, %f]\n\n", cr.x, cr.y, cr.z);
+            }
+
+            curl += float4(cr.x, cr.y, cr.z, 0.0f);
         }
     }
 
@@ -399,33 +412,9 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
         }
     }
 
-    /// Apply Vorticity confinement
+    /// Apply Vorticity confinement and
+    /// XSPH viscosity smoothing
     float3 n = ZERO3F; //ŋ
-
-    for (uint i = 0; i < neighbouringBinCount; ++i) {
-        uint nBinID = neighbouringBinIDs[i];
-
-        nBinStartID = binStartIDs[nBinID];
-        nBinCount = binCounts[nBinID];
-
-        for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
-            n += (1 / (max(densities[pID], 100.0f))) * length(curls[pID]) * grad_Wspiky(position - positions[pID], fluid.kernelRadius);
-        }
-    }
-
-    float3 n_hat = ZERO3F;
-    if (fabs(n.x) > EPSILON && fabs(n.y) > EPSILON && fabs(n.z) > EPSILON) {
-        n_hat = n / length(n);
-    }
-
-    float4 f_vc = fluid.k_vc * cross(float4(n_hat.x, n_hat.y, n_hat.z, 0.0f),
-                                            float4(curl.x,  curl.y,  curl.z, 0.0f));
-
-    if (ID == 0) {
-        //printf("curl=[%f, %f, %f], n=[%f, %f, %f], f_vc=[%f, %f, %f]\n", curl.x, curl.y, curl.z, n.x, n.y, n.z, f_vc.x, f_vc.y, f_vc.z);
-    }
-
-    /// Apply XSPH viscosity smoothing
     float3 sumWeightedNeighbourVelocities = ZERO3F;
 
     for (uint i = 0; i < neighbouringBinCount; ++i) {
@@ -435,17 +424,35 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
         nBinCount = binCounts[nBinID];
 
         for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
-            sumWeightedNeighbourVelocities += (1 / densities[pID]) *
-                     (velocity - velocitiesIn[pID]) * Wpoly6(position - positions[pID], fluid.kernelRadius);
+            // for vorticity
+            n += (1 / (max(densities[pID], 100.0f))) * euclidean_distance(curls[pID]) * grad_Wspiky(position - positions[pID], fluid.kernelRadius);
+
+            // for viscosity
+            sumWeightedNeighbourVelocities += (1 / max(densities[pID], 100.0f)) *
+                (velocity - velocitiesIn[pID]) * Wpoly6(position - positions[pID], fluid.kernelRadius);
         }
     }
 
-    /* + fluid.c * sumWeightedNeighbourVelocities*/
-    //velocitiesOut[ID] = sumWeightedNeighbourVelocities;
-    //velocitiesOut[ID] = velocity;
+    float3 n_hat = ZERO3F;
+    if (euclidean_distance2(n) > EPSILON) {
+        n_hat = n / length(n);
+    }
+
+    float4 f_vc = fluid.k_vc * cross(float4(n_hat.x, n_hat.y, n_hat.z, 0.0f),
+                                            float4(curl.x,  curl.y,  curl.z, 0.0f));
+
+    if (ID == 0) {
+        float3 newVelocity = velocity
+                             + fluid.c * sumWeightedNeighbourVelocities;
+        //printf("oldVelocity = [%f, %f, %f]\n", velocity.x, velocity.y, velocity.z);
+        //printf("newVelocity = [%f, %f, %f]\n", newVelocity.x, newVelocity.y, newVelocity.z);
+        //printf("curl=[%f, %f, %f]\n", curl.x, curl.y, curl.z);
+        //printf("f_vc=[%f, %f, %f]\n\n", f_vc.x, f_vc.y, f_vc.z);
+    }
+
     velocitiesOut[ID] = velocity
-                        + fluid.c * sumWeightedNeighbourVelocities;
-    //                    + fluid.deltaTime * float3(f_vc.x, f_vc.y, f_vc.z);
+                        + fluid.c * sumWeightedNeighbourVelocities
+                        + fluid.k_vc * fluid.deltaTime * float3(f_vc.x, f_vc.y, f_vc.z);
 }
 
 __kernel void set_positions_from_predictions(__global const float3 *predictedPositions,
@@ -507,6 +514,14 @@ inline float sqroot(float x__) {
 #else
     return sqrt(x__);
 #endif
+}
+
+inline float3 cross_(float3 u_, float3 v_) {
+    float3 result;
+    result.x = u_.y * v_.z - u_.z * v_.y;
+    result.y = u_.z * v_.x - u_.x * v_.z;
+    result.z = u_.x * v_.y - u_.y * v_.x;
+    return result;
 }
 
 inline float calc_bound_density_contribution(float dx_, float kernelRadius_) {
