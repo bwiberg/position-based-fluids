@@ -345,6 +345,13 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::update() {
+        if (isKeyDown(GLFW_KEY_RIGHT)) mSpawnPoint.x += 0.018f;
+        if (isKeyDown(GLFW_KEY_LEFT)) mSpawnPoint.x -= 0.018f;
+        if (isKeyDown(GLFW_KEY_UP)) mSpawnPoint.y += 0.018f;
+        if (isKeyDown(GLFW_KEY_DOWN)) mSpawnPoint.y -= 0.018f;
+        mSpawnPointSphereObject->setPosition(glm::vec3(getWorldSpawnPoint().x, -getWorldSpawnPoint().y, getWorldSpawnPoint().z));
+        if (isKeyDown(GLFW_KEY_SPACE)) spawnParticles();
+
         double timeBegin = glfwGetTime();
         if (mFramesSinceLastUpdate == 0) {
             mTimeOfLastUpdate = timeBegin;
@@ -642,28 +649,17 @@ namespace pbf {
     //////////////////////
 
     bool ParticleSimulationScene::keyboardEvent(int key, int scancode, int action, int modifiers) {
-        if (key == GLFW_KEY_SPACE && action == GLFW_REPEAT) {
-            spawnParticles();
-            return true;
-        }
-
-        if (key == GLFW_KEY_LEFT_SHIFT) {
-            if (action == GLFW_PRESS) mIsMovingSpawnPoint = true;
-            else if (action == GLFW_RELEASE) mIsMovingSpawnPoint = false;
-        }
-
         return false;
     }
 
     bool ParticleSimulationScene::mouseButtonEvent(const glm::ivec2 &p, int button, bool down, int modifiers) {
         if (button == GLFW_MOUSE_BUTTON_LEFT) {
-            if (clickedOnSphere(mSpawnPointSphere, p)) {
-                std::cout << "Clicked on sphere!" << std::endl;
-                mIsMovingSpawnPoint = down;
-                return true;
-            } else {
-                std::cout << "Missed the sphere!" << std::endl;
-            }
+//            if (clickedOnSphere(mSpawnPointSphere, p)) {
+//                std::cout << "Clicked on sphere!" << std::endl;
+//                return true;
+//            } else {
+//                std::cout << "Missed the sphere!" << std::endl;
+//            }
 
             mIsRotatingCamera = down;
             return true;
@@ -680,13 +676,6 @@ namespace pbf {
             eulerAngles.y += 0.05f * rel.x;
             eulerAngles.x = clamp(eulerAngles.x, - CL_M_PI_F / 2, CL_M_PI_F / 2);
             mCameraRotator->setEulerAngles(eulerAngles);
-
-            return true;
-        }
-
-        if (mIsMovingSpawnPoint) {
-            mSpawnPoint.x = clamp(mSpawnPoint.x + rel.x / 100.f, -1.0f, 1.0f);
-            mSpawnPoint.y = clamp(mSpawnPoint.y + rel.y / 100.f, -1.0f, 1.0f);
 
             return true;
         }

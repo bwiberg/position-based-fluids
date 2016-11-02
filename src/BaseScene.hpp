@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <functional>
 
 #include <CL/cl.hpp>
 #include <nanogui/nanogui.h>
@@ -42,6 +43,14 @@ namespace clgl {
          */
         virtual void render() = 0;
 
+        inline bool isKeyDown(int glfwKey) {
+            return mIsKeyDownFunctor(glfwKey);
+        }
+
+        inline void setIsKeyDownFunctor(const std::function<bool(int)> &isKeyDownFunctor)  {
+            mIsKeyDownFunctor = isKeyDownFunctor;
+        }
+
         //////////////
         /// EVENTS ///
         //////////////
@@ -64,5 +73,8 @@ namespace clgl {
         cl::Device &mDevice;
 
         cl::CommandQueue &mQueue;
+
+    private:
+        std::function<bool(int)> mIsKeyDownFunctor;
     };
 }

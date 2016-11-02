@@ -243,6 +243,9 @@ namespace clgl {
 
         mScene = std::move(sceneCreator(mContext, mDevice, mQueue));
         mScene->addGUI(mScreen.get());
+        mScene->setIsKeyDownFunctor([=](int glfwKey) {
+            return glfwGetKey(this->mScreen->glfwWindow(), glfwKey) == GLFW_PRESS;
+        });
         mScreen->performLayout();
 
         mScene->reset();
@@ -345,9 +348,6 @@ namespace clgl {
     bool Application::Screen::keyboardEvent(int key, int scancode, int action, int modifiers) {
         if (Widget::keyboardEvent(key, scancode, action, modifiers)) { return true; }
         if (!mApp.mScene) { return false; }
-        if (key == GLFW_KEY_RIGHT && action == GLFW_PRESS && !mApp.mSceneIsPlaying) {
-            mApp.mScene->update();
-        }
         return !mApp.mScene->keyboardEvent(key, scancode, action, modifiers);
     }
 

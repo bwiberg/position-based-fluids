@@ -65,8 +65,6 @@ namespace pbf {
 
         std::shared_ptr<clgl::MeshObject> mSpawnPointSphereObject;
 
-        bool mIsMovingSpawnPoint;
-
         std::shared_ptr<clgl::Camera> mCamera;
 
         std::shared_ptr<clgl::SceneObject> mCameraRotator;
