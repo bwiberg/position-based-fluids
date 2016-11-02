@@ -62,7 +62,15 @@ namespace clgl {
 
         bool mIsRecording;
 
+        uint mRecordCount;
 
+        FILE* ffmpeg;
+
+        int *buffer;
+
+#ifdef TARGET_OS_MAC
+        int *bufferRetina;
+#endif
 
         uint mNextFrameNumber;
 

@@ -1,5 +1,6 @@
 #include "Application.hpp"
 
+#include <stdio.h>
 #include <iostream>
 #include <util/make_unique.hpp>
 #include "util/OCL_CALL.hpp"
@@ -112,7 +113,7 @@ namespace clgl {
 
         mScreen = std::move(util::make_unique<Screen>(*this,
                 windowSize, "CL-GL Bootstrap",
-                /*resizable*/true, fullscreen, /*colorBits*/8,
+                /*resizable*/false, fullscreen, /*colorBits*/8,
                 /*alphaBits*/8, /*depthBits*/24, /*stencilBits*/8,
                 /*nSamples*/0));
         glfwSwapInterval(1);
@@ -208,12 +209,12 @@ namespace clgl {
             if (this->mScene) { mScene->reset(); }
         });
 
-//        Button *record = new Button(tools, "", ENTYPO_ICON_RECORD);
-//        record->setFlags(Button::Flags::ToggleButton);
-//        record->setFixedSize(toolSize);
-//        record->setChangeCallback([=] (bool shouldRecord){
-//            this->toggleRecording(shouldRecord);
-//        });
+        Button *record = new Button(tools, "", ENTYPO_ICON_RECORD);
+        record->setFlags(Button::Flags::ToggleButton);
+        record->setFixedSize(toolSize);
+        record->setChangeCallback([=] (bool shouldRecord){
+            this->toggleRecording(shouldRecord);
+        });
 
         PopupButton *load = new PopupButton(tools, "LOAD");
         load->setFixedSize(toolSize);
@@ -260,37 +261,49 @@ namespace clgl {
 
     void Application::toggleRecording(bool shouldRecord) {
         mIsRecording = shouldRecord;
+
+        if (shouldRecord) {
+#ifdef TARGET_OS_MAC
+            int width = 2 * mScreen->width();
+            int height = 2 * mScreen->height();
+#else
+            int width = mScreen->width();
+            int height = mScreen->height();
+#endif
+
+            buffer = new int[width * height];
+
+            const std::string filename = OUTPUTPATH("output" + std::to_string(mRecordCount++) + ".mp4");
+            const std::string resolution = std::to_string(width) + "x" + std::to_string(height);
+            const std::string scaledResolution = std::to_string(width) + ":" + std::to_string(height);
+
+
+            // start ffmpeg telling it to expect raw rgba 60hz frames
+            // -i - tells it to read frames from stdin
+            const std::string cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s " + resolution + " -i - "
+                    "-threads 0 -preset fast -y -pix_fmt yuv420p -crf 21 -vf vflip " + filename;
+
+            // open pipe to ffmpeg's stdin in binary write mode
+            ffmpeg = popen(cmd.c_str(), "w");
+
+        } else {
+            pclose(ffmpeg);
+            delete[] buffer;
+            buffer = nullptr;
+            ffmpeg = nullptr;
+        }
     }
 
     void Application::recordFrame() {
-        std::stringstream ss;
-        ss << std::setw(4) << std::setfill('0') << mNextFrameNumber++ << ".png";
-        const std::string framename = OUTPUTPATH(ss.str());
-
-        std::ofstream fs(framename);
-        std::cout << framename << std::endl;
-
-        int width;
-        int height;
-
-        glfwGetWindowSize(mScreen->glfwWindow(), &width, &height);
-
-        std::vector<GLubyte> pixels;
-        pixels.resize(3 * width * height);
-
-        glPixelStorei(GL_PACK_ALIGNMENT, 1);
-        glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
-
-        std::vector<unsigned char> image(pixels.begin(), pixels.end());
-
-        //Encode the image
-        unsigned error = lodepng::encode(framename,
-                                         image,
-                                         width, height,
-                                         LCT_RGB, 8);
-
-        //if there's an error, display it
-        if(error) std::cout << "encoder error " << error << ": "<< lodepng_error_text(error) << std::endl;
+#ifdef TARGET_OS_MAC
+        int width = 2 * mScreen->width();
+        int height = 2 * mScreen->height();
+#else
+        int width = mScreen->width();
+        int height = mScreen->height();
+#endif
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buffer);
+        fwrite(buffer, sizeof(int) * width * height, 1, ffmpeg);
     }
 
     Application::Screen::Screen(Application &app,
@@ -312,7 +325,7 @@ namespace clgl {
         drawContents();
         drawWidgets();
 
-        if (mApp.mSceneIsPlaying && mApp.mIsRecording) {
+        if (mApp.mIsRecording) {
             mApp.recordFrame();
         }
 
