@@ -36,24 +36,78 @@ typedef struct def_Bounds {
 } Bounds;
 
 
+/**
+ * Computes the 3D-indices into the uniform grid from a 1D-index.
+ * @param binID The 1D-index
+ * @return The 3D index
+ */
 uint3 getBinID_3D(uint binID);
 
+/**
+ * Computes the 1D-index into the linearized uniform grid arrays from a 3D-index.
+ * @param binID_3D The 3D-index
+ * @return The 1D-index
+ */
 uint getBinID(const uint3 binID_3D);
 
+/**
+ * Computes the squared norm of a 3-component vector.
+ * @param r The vector
+ * @return The squared norm
+ */
 float euclidean_distance2(const float3 r);
 
+/**
+ * Computes the norm of a 3-component vector.
+ * @param r The vector
+ * @return The norm
+ */
 float euclidean_distance(const float3 r);
 
+/**
+ * Evaluates the poly6 SPH-kernel at the given coordinate.
+ * @param r The vector from the origin of the kernel.
+ * @param h The kernel radius
+ * @return The value of the kernel
+ */
 float Wpoly6(const float3 r, const float h);
 
+/**
+ * Evaluates the gradient of the spiky SPH-kernel at the given coordinate.
+ * @param The vector from the origin of the kernel.
+ * @param h The kernel radius
+ * @return The gradient of the kernel
+ */
 float3 grad_Wspiky(const float3 r, const float h);
 
+/**
+ * Calculates the cross product between vectors u_ and v_ as (u x v). Needed since OpenCL's
+ * built-in cross function always returns the wrong results, at least when usingIntel's
+ * OpenCL SDK.
+ * @param u_ The first vector
+ * @param v_ The second vector
+ * @return The cross product
+ */
 float3 cross_(float3 u_, float3 v_);
 
+/**
+ * Computes the square root of x__. Can be defined to compute a "fast" square root.
+ * @param x__ The input value
+ * @return Its square root
+ */
 float sqroot(float x__);
 
+/**
+ * Calculates the density contribution from a planar wall using the volume of a hemisphere.
+ * @param dx_ The distance from the boundary
+ * @param kernelRadius_ The kernel radius
+ * @return The density contribution
+ */
 float calc_bound_density_contribution(float dx_, float kernelRadius_);
 
+/**
+ * Calculates the density of a particle.
+ */
 __kernel void calc_densities(         const Fluid   fluid,          // 0
                                       const Bounds  bounds,         // 1
                              __global const float3  *positions,     // 2
@@ -67,6 +121,9 @@ __kernel void calc_densities(         const Fluid   fluid,          // 0
 
     const uint binID = binIDs[ID];
     const int3 binID3D = convert_int3(getBinID_3D(binID));
+
+
+/// Gather neighbours
 
     uint neighbouringBinIDs[3 * 3 * 3];
     uint neighbouringBinCount = 0;
@@ -96,6 +153,9 @@ __kernel void calc_densities(         const Fluid   fluid,          // 0
         }
     }
 
+
+/// for all neighbours: calculate density contribution
+
     for (uint i = 0; i < neighbouringBinCount; ++i) {
         uint nBinID = neighbouringBinIDs[i];
 
@@ -108,7 +168,8 @@ __kernel void calc_densities(         const Fluid   fluid,          // 0
 
     }
 
-    /// Boundary density contributions
+    /// Add boundary density contributions
+
     float b_density = 0.0f;
     // x-left
     b_density = b_density + calc_bound_density_contribution(position.x + bounds.halfDimensions.x, fluid.kernelRadius);
@@ -123,9 +184,13 @@ __kernel void calc_densities(         const Fluid   fluid,          // 0
     // z-far
     b_density = b_density + calc_bound_density_contribution(bounds.halfDimensions.z - position.z, fluid.kernelRadius);
 
+
     densities[ID] = density + fluid.kBoundsDensity * b_density;
 }
 
+/**
+ * Calculates the lambda value (i.e. magnitude of position correction along jacobian) for a particle.
+ */
 __kernel void calc_lambdas(const Fluid            fluid,          // 0
                            __global const float3  *positions,     // 1
                            __global const uint    *binIDs,        // 2
@@ -141,7 +206,9 @@ __kernel void calc_lambdas(const Fluid            fluid,          // 0
     const uint binID = binIDs[ID];
     const int3 binID3D = convert_int3(getBinID_3D(binID));
 
-    /// Find all neighbours
+
+    /// Gather all neighbours
+
     uint neighbouringBinIDs[3 * 3 * 3];
     uint neighbouringBinCount = 0;
 
@@ -169,7 +236,9 @@ __kernel void calc_lambdas(const Fluid            fluid,          // 0
         }
     }
 
+
     /// Calculate gradient^2 of Ci for all neighbours
+
     float sumOfSquaredGradients = 0.0f;
 
     //  Accumulator for the case where k=i, i.e. the sum itself should be squared
@@ -208,13 +277,16 @@ __kernel void calc_lambdas(const Fluid            fluid,          // 0
                                 grad_ki.y * grad_ki.y +
                                 grad_ki.z * grad_ki.z;
 
+
     /// Compute lambda_i as (-Ci)/(sum(gradient^2 of Ci) + eps)
+
     const float lambda = - Ci / ((sumOfSquaredGradients / pow(fluid.restDensity, 2)) + fluid.epsilon);
     lambdas[ID] = lambda;
-
-    //printf("<particle ID=%d density=%f lambda=%f>\n", ID, density, lambda);
 }
 
+/**
+ * Calculates the position correction for a particle.
+ */
 __kernel void calc_delta_pi_and_update(const Fluid            fluid,          // 0
                                        const Bounds           bounds,         // 1
                                        __global float3        *positions,     // 2
@@ -231,7 +303,9 @@ __kernel void calc_delta_pi_and_update(const Fluid            fluid,          //
     const uint binID = binIDs[ID];
     const int3 binID3D = convert_int3(getBinID_3D(binID));
 
-    /// Find all neighbours
+
+    /// Gather all neighbours
+
     uint neighbouringBinIDs[3 * 3 * 3];
     uint neighbouringBinCount = 0;
 
@@ -261,6 +335,9 @@ __kernel void calc_delta_pi_and_update(const Fluid            fluid,          //
         }
     }
 
+
+    /// for each neighbour: smooth out lambda values and calculate tensile instability term
+
     float3 k_position = ZERO3F;
     float s_corr = 0.0f;
     for (uint i = 0; i < neighbouringBinCount; ++i) {
@@ -282,11 +359,13 @@ __kernel void calc_delta_pi_and_update(const Fluid            fluid,          //
 
     delta_pi = delta_pi / fluid.restDensity;
 
-    // Clip to bounds etc.
-
+    // clamp the position correction to be within reasonable limits
     positions[ID] = position + clamp(delta_pi, - MAX_DELTA_PI, MAX_DELTA_PI);
 }
 
+/**
+ * Calculates the velocity of a particle as (x_i+1 - x_i) / dt
+ */
 __kernel void recalc_velocities(__global const float3 *previousPositions,
                                 __global const float3 *currentPositions,
                                 __global float3       *velocities,
@@ -294,6 +373,9 @@ __kernel void recalc_velocities(__global const float3 *previousPositions,
     velocities[ID] = oneOverDt * (currentPositions[ID] - previousPositions[ID]);
 }
 
+/**
+ * Calculates the curl of a particle.
+ */
 __kernel void calc_curls(const Fluid            fluid,          // 0
                          __global const uint    *binIDs,        // 1
                          __global const uint    *binStartIDs,   // 2
@@ -307,7 +389,8 @@ __kernel void calc_curls(const Fluid            fluid,          // 0
     const uint binID = binIDs[ID];
     const int3 binID3D = convert_int3(getBinID_3D(binID));
 
-    /// Find all neighbours
+
+    /// Gather all neighbours
     uint neighbouringBinIDs[3 * 3 * 3];
     uint neighbouringBinCount = 0;
 
@@ -335,8 +418,10 @@ __kernel void calc_curls(const Fluid            fluid,          // 0
         }
     }
 
-    /// Calculate particle curl
-    float4 curl = float4(0.0f, 0.0f, 0.0f, 0.0f);
+
+    /// for each neighbour: calculate curl contribution
+
+    float3 curl = ZERO3F;
     float3 u = ZERO3F;
     float3 v = ZERO3F;
 
@@ -349,23 +434,16 @@ __kernel void calc_curls(const Fluid            fluid,          // 0
         for (uint pID = nBinStartID; pID < (nBinStartID + nBinCount); ++pID) {
             u = velocities[pID] - velocity;
             v = grad_Wspiky(position - positions[pID], fluid.kernelRadius);
-
-            float3 cr = cross_(u, v);
-            if (euclidean_distance(v) > EPSILON && ID == 0) {
-                printf("u=[%f, %f, %f]\n", u.x, u.y, u.z);
-                printf("v=[%f, %f, %f]\n", v.x, v.y, v.z);
-                printf("pi=[%f, %f, %f]\n", position.x, position.y, position.z);
-                printf("pj=[%f, %f, %f]\n", positions[pID].x, positions[pID].y, positions[pID].z);
-                printf("curl=[%f, %f, %f]\n\n", cr.x, cr.y, cr.z);
-            }
-
-            curl += float4(cr.x, cr.y, cr.z, 0.0f);
+            curl += cross_(u, v);
         }
     }
 
-    curls[ID] = float3(curl.x, curl.y, curl.z);
+    curls[ID] = curl;
 }
 
+/**
+ * Applies vorticity confinement and viscosity smoothing to a particle.
+ */
 __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             // 0
                                       __global const uint    *binIDs,           // 1
                                       __global const uint    *binStartIDs,      // 2
@@ -384,7 +462,9 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
     const uint binID = binIDs[ID];
     const int3 binID3D = convert_int3(getBinID_3D(binID));
 
-    /// Find all neighbours
+
+    /// Gather all neighbours
+
     uint neighbouringBinIDs[3 * 3 * 3];
     uint neighbouringBinCount = 0;
 
@@ -412,8 +492,11 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
         }
     }
 
-    /// Apply Vorticity confinement and
-    /// XSPH viscosity smoothing
+
+    /// for each particle:
+    /// 1. Apply Vorticity confinement contribution
+    /// 2. Apply XSPH viscosity smoothing
+
     float3 n = ZERO3F; //ŋ
     float3 sumWeightedNeighbourVelocities = ZERO3F;
 
@@ -441,20 +524,14 @@ __kernel void apply_vort_and_viscXSPH(const Fluid            fluid,             
     float4 f_vc = fluid.k_vc * cross(float4(n_hat.x, n_hat.y, n_hat.z, 0.0f),
                                             float4(curl.x,  curl.y,  curl.z, 0.0f));
 
-    if (ID == 0) {
-        float3 newVelocity = velocity
-                             + fluid.c * sumWeightedNeighbourVelocities;
-        //printf("oldVelocity = [%f, %f, %f]\n", velocity.x, velocity.y, velocity.z);
-        //printf("newVelocity = [%f, %f, %f]\n", newVelocity.x, newVelocity.y, newVelocity.z);
-        //printf("curl=[%f, %f, %f]\n", curl.x, curl.y, curl.z);
-        //printf("f_vc=[%f, %f, %f]\n\n", f_vc.x, f_vc.y, f_vc.z);
-    }
-
     velocitiesOut[ID] = velocity
                         + fluid.c * sumWeightedNeighbourVelocities
                         + fluid.k_vc * fluid.deltaTime * float3(f_vc.x, f_vc.y, f_vc.z);
 }
 
+/**
+ * Overwrites the actual particle position with a PBF-corrected (predicted) position.
+ */
 __kernel void set_positions_from_predictions(__global const float3 *predictedPositions,
                                              __global float3       *positions) {
     positions[ID] = predictedPositions[ID];
