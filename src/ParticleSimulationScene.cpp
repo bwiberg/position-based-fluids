@@ -154,56 +154,7 @@ namespace pbf {
             mParticleRadius = 20 * value;
         });
         particleSize->setValue(mParticleRadius / 20);
-
-
-        /// Ambient light parameters
-
-//        new Label(win, "Ambient Intensity", "sans", 10);
-//        Slider *ambIntensity = new Slider(win);
-//        ambIntensity->setCallback([&](float value){
-//            mAmbLight->setIntensity(value);
-//        });
-//        ambIntensity->setValue(mAmbLight->getIntensity());
-
-
-        /// Directional light parameters
-
-//        new Label(win, "Directional Intensity", "sans", 10);
-//        Slider *dirIntensity = new Slider(win);
-//        dirIntensity->setCallback([&](float value){
-//            mDirLight->setIntensity(value);
-//        });
-//        dirIntensity->setValue(mDirLight->getIntensity());
-
-
-        /// Point light parameters
-
-//        new Label(win, "Point Parameters", "sans", 10);
-//        new Label(win, "Intensity");
-//        Slider *spotSlider = new Slider(win);
-//        spotSlider->setCallback([&](float value){
-//            mPointLight->setIntensity(value);
-//        });
-//        spotSlider->setValue(mPointLight->getIntensity());
-//
-//        new Label(win, "Attenuation (linear)");
-//        spotSlider = new Slider(win);
-//        spotSlider->setCallback([&](float value){
-//            clgl::Attenuation att = mPointLight->getAttenuation();
-//            att.a = value * 10;
-//            mPointLight->setAttenuation(att);
-//        });
-//        spotSlider->setValue(mPointLight->getAttenuation().a / 10);
-//
-//        new Label(win, "Attenuation (quadratic)");
-//        spotSlider = new Slider(win);
-//        spotSlider->setCallback([&](float value){
-//            clgl::Attenuation att = mPointLight->getAttenuation();
-//            att.b = value * 10;
-//            mPointLight->setAttenuation(att);
-//        });
-//        spotSlider->setValue(mPointLight->getAttenuation().b / 10);
-
+        
         FormHelper *gui = new FormHelper(screen);
         gui->addWindow(Eigen::Vector2i(1100, 15), "Fluid parameters");
 
