@@ -71,7 +71,7 @@ namespace pbf {
         mAmbLight = std::make_shared<clgl::AmbientLight>(glm::vec3(0.3f, 0.3f, 1.0f), 0.2f);
         mDirLight = std::make_shared<clgl::DirectionalLight>(glm::vec3(1.0f, 1.0f, 1.0f), 0.1f);
         mPointLight = std::make_shared<clgl::PointLight>(glm::vec3(1.0f, 1.0f, 1.0f), 1.0f);
-        mPointLight->setPosition(glm::vec3(0.0f, 2.0f, 0.0f));
+        mPointLight->setPosition(glm::vec3(0.0f, HALFDIMS.y, 0.0f));
         mPointLight->setAttenuation(clgl::Attenuation(0.1f, 0.1f));
 
 
@@ -154,7 +154,7 @@ namespace pbf {
             mParticleRadius = 20 * value;
         });
         particleSize->setValue(mParticleRadius / 20);
-        
+
         FormHelper *gui = new FormHelper(screen);
         gui->addWindow(Eigen::Vector2i(1100, 15), "Fluid parameters");
 
@@ -296,12 +296,22 @@ namespace pbf {
     }
 
     void ParticleSimulationScene::update() {
+        /// Move spawn point
         if (isKeyDown(GLFW_KEY_RIGHT)) mSpawnPoint.x += 0.018f;
         if (isKeyDown(GLFW_KEY_LEFT)) mSpawnPoint.x -= 0.018f;
         if (isKeyDown(GLFW_KEY_UP)) mSpawnPoint.y += 0.018f;
         if (isKeyDown(GLFW_KEY_DOWN)) mSpawnPoint.y -= 0.018f;
         mSpawnPointSphereObject->setPosition(glm::vec3(getWorldSpawnPoint().x, -getWorldSpawnPoint().y, getWorldSpawnPoint().z));
         if (isKeyDown(GLFW_KEY_SPACE)) spawnParticles();
+
+        /// Rotate camera with keys
+        glm::vec3 eulerAngles = mCameraRotator->getEulerAngles();
+        if (isKeyDown(GLFW_KEY_A)) eulerAngles.y += 0.04f;
+        if (isKeyDown(GLFW_KEY_D)) eulerAngles.y -= 0.04f;
+        if (isKeyDown(GLFW_KEY_S)) eulerAngles.x -= 0.04f;
+        if (isKeyDown(GLFW_KEY_W)) eulerAngles.x += 0.04f;
+        eulerAngles.x = clamp(eulerAngles.x, - CL_M_PI_F / 2, CL_M_PI_F / 2);
+        mCameraRotator->setEulerAngles(eulerAngles);
 
         double timeBegin = glfwGetTime();
         if (mFramesSinceLastUpdate == 0) {
@@ -478,7 +488,7 @@ namespace pbf {
         mSimulationTimes.push_front(timeEnd - timeBegin);
 
         // update GUI twice each second
-        if (timeEnd - mTimeOfLastUpdate > 0.5) {
+        if (timeEnd - mTimeOfLastUpdate > 2.0f) {
             updateTimeLabelsInGUI(timeEnd - mTimeOfLastUpdate);
             mFramesSinceLastUpdate = 0;
         }
