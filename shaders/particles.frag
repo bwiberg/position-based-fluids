@@ -42,20 +42,18 @@ void main() {
     vec3 spherePosEye = posEye + n*pointRadius;
 
     // calculate lighting
-    vec3 lightDir = normalize(vec3(pointLight.position) - posWorld);
+    vec3 lightDir = normalize(vec3(0.0f, 2.0f, 2.0f) - posWorld);
+    // directionalLighting
 
     float diffuse = max(0.0, dot(lightDir, n));
     vec3 v = normalize(-spherePosEye);
     vec3 h = normalize(lightDir + v);
     float specular = pow(max(0.0, dot(n, h)), shininess);
 
-    //color = vec4(pointLight.color * pointLight.intensity * diffuse + ambLight.color * ambLight.intensity, 1);
-    //color = vec4(1, 1, 1, 1);
-    float dens = particleDensity;
-    float x = mod(dens, 10);
-    float y = mod(dens-x, 100);
-    float z = dens-x-y;
+    float dens = particleDensity/15000;
 
-    color = vec4(vec3(particleDensity/15000), 1);
-    //color = vec4(x/4, y/4, z/4, 1);
+    vec3 tempColor = diffuse * vec3(0.9, 0.94, 1.0);
+
+    //color = vec4(pointLight.color * pointLight.intensity * diffuse + ambLight.color * ambLight.intensity, 1);
+    color = vec4(dens * tempColor + 0.1f, 1.0f);
 }
