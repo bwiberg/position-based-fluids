@@ -40,9 +40,11 @@ The program has only been tested on MacOS so far, so it will probably not run on
 
 The only dependency which is not included in the source code is GLM (which is found by CMake and must be installed on the machine), the rest are included as git submodules. 
 
-1. Create a subdirectory named build
-2. Run `cmake ..` and then `make` from that directory.
-3. Run the program using `./pbf`. Optional program flags and arguments are:
+1. Get the source code using `git clone https://github.com/bwiberg/position-based-fluids.git`
+2. Fetch all submodules using `git submodule update --init --recursive`
+3. Create a subdirectory named e.g. /build
+4. Run `cmake ..` and then `make` from that directory.
+5. Run the program using `./pbf`. Optional program flags and arguments are:
     * `-w 1280 720` Opens the window with a resolution of 1280x270.
     * `-f`  Causes the program to run in fullscreen. Overrides the `-w` flag.
     * `-cl 0 1` Automatically selects the OpenCL context as alternative 0 and the OpenCL device as alternative 1.
