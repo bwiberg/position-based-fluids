@@ -49,9 +49,9 @@ namespace pbf {
 
         mGridCL = make_unique<pbf::Grid>();
         mGridCL->halfDimensions = {HALFDIMS.x, HALFDIMS.y, HALFDIMS.z, 0.0f};
-        mGridCL->binSize = 0.2f;
-        mGridCL->binCount3D = {8, 10, 10, 0};
-        mGridCL->binCount = 8 * 10 * 10;
+        mGridCL->binSize = 0.1f;
+        mGridCL->binCount3D = {16, 20, 20, 0};
+        mGridCL->binCount = 16 * 20 * 20;
 
         mFluidCL = pbf::Fluid::GetDefault();
 
