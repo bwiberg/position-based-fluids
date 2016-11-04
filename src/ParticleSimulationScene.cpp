@@ -170,7 +170,7 @@ namespace pbf {
         });
 
         gui->addVariable("Sub-steps", mFluidCL->numSubSteps);
-        gui->addVariable("kernelRadius", mFluidCL->kernelRadius);
+        gui->addVariable("kernelRadius", mFluidCL->kernelRadius, false);
         gui->addVariable("restDensity", mFluidCL->restDensity);
         gui->addVariable("deltaTime", mFluidCL->deltaTime);
         gui->addVariable("epsilon", mFluidCL->epsilon);
