@@ -43,7 +43,7 @@ The only dependency which is not included in the source code is GLM (which is fo
 1. Get the source code using `git clone https://github.com/bwiberg/position-based-fluids.git`
 2. Fetch all submodules using `git submodule update --init --recursive`
 3. Create a subdirectory named e.g. /build
-4. Run `cmake ..` and then `make` from that directory.
+4. Run `cmake -DCMAKE_BUILD_TYPE=Debug ..` and then `make` from that directoy (NOTE: the program will crash with the output "illegal hardware instruction" on MacOS if using the release configuration, I will have to investigate why)
 5. Run the program using `./pbf`. Optional program flags and arguments are:
     * `-w 1280 720` Opens the window with a resolution of 1280x270.
     * `-f`  Causes the program to run in fullscreen. Overrides the `-w` flag.
