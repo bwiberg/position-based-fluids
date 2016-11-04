@@ -7,7 +7,7 @@ namespace pbf {
     std::unique_ptr<Fluid> Fluid::GetDefault() {
         std::unique_ptr<Fluid> fluid = util::make_unique<Fluid>();
 
-        fluid->kernelRadius = 0.11f;
+        fluid->kernelRadius = 0.10f;
         fluid->numSubSteps = 4;
         fluid->restDensity  = 8000.0f;
         fluid->deltaTime    = 0.0083f;
@@ -16,7 +16,7 @@ namespace pbf {
         fluid->delta_q      = 0.03f;
         fluid->n            = 4;
         fluid->c            = 0.05f;
-        fluid->k_vc         = 25.0f;
+        fluid->k_vc         = 75.0f;
 
         fluid->kBoundsDensity = 50.0f;
 
