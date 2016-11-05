@@ -156,7 +156,7 @@ namespace pbf {
         particleSize->setValue(mParticleRadius / 20);
 
         FormHelper *gui = new FormHelper(screen);
-        gui->addWindow(Eigen::Vector2i(1100, 15), "Fluid parameters");
+        gui->addWindow(Eigen::Vector2i(screen->width() - 200, 15), "Fluid parameters");
 
         gui->addButton("Load", [&, gui] {
             std::string filename = file_dialog({ {"txt", "Text file"}, {"txt", "Text file"} }, false);
