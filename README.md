@@ -1,5 +1,7 @@
-# Position-based fluids in OpenCL
+# Real-time Position-Based Fluids in OpenCL
 Course assignment for CS 348C: Animation and Simulation, Fall 2016. Based on the paper [Position-Based Fluids](http://mmacklin.com/pbf_sig_preprint.pdf) by Macklin and Müller.
+
+![Screenshot](https://raw.githubusercontent.com/bwiberg/position-based-fluids/master/screenshot.png "Screenshot")
 
 ## Libraries
 * Based on the cl-gl-bootstrap template for C++ project with OpenCL-OpenGL interoperability, written by me.
@@ -46,6 +48,6 @@ The only dependency which is not included in the source code is GLM (which is fo
 4. Run `cmake -DCMAKE_BUILD_TYPE=Debug ..` and then `make` from that directoy (NOTE: the program will crash with the output "illegal hardware instruction" on MacOS if using the release configuration, I will have to investigate why)
 5. Run the program using `./pbf`. Optional program flags and arguments are:
     * `-w 1280 720` Opens the window with a resolution of 1280x270.
-    * `-f`  Causes the program to run in fullscreen. Overrides the `-w` flag.
+    * `-f`  Causes the program to run in fullscreen. Overrides the `-w` flag. (NOTE: must specify the `-cl` flag when using the `-f` flag)
     * `-cl 0 1` Automatically selects the OpenCL context as alternative 0 and the OpenCL device as alternative 1.
     
