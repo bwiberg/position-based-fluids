@@ -1,7 +1,7 @@
 # Real-time Position-Based Fluids in OpenCL
 Course assignment for CS 348C: Animation and Simulation, Fall 2016. Based on the paper [Position-Based Fluids](http://mmacklin.com/pbf_sig_preprint.pdf) by Macklin and Müller.
 
-![Screenshot](https://raw.githubusercontent.com/bwiberg/position-based-fluids/master/screenshot.png "Screenshot")
+<img src="https://raw.githubusercontent.com/bwiberg/position-based-fluids/master/video.gif" width="500" >
 
 ## Libraries
 * Based on the cl-gl-bootstrap template for C++ project with OpenCL-OpenGL interoperability, written by me.
